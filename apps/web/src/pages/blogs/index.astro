@@ -1,0 +1,30 @@
+---
+import PostCard from "../../components/PostCard.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { listPosts } from "../../lib/blogs";
+
+const posts = await listPosts();
+---
+
+<BaseLayout
+	title="Blogs"
+	description="Notes and writing from whoami."
+	current="blogs"
+>
+	<main class="reading">
+		<h1 class="page-title">Blogs</h1>
+		<p class="page-desc">Things written down so they can be found again.</p>
+
+		{
+			posts.length === 0 ? (
+				<p class="empty">No posts yet.</p>
+			) : (
+				<ul class="post-list">
+					{posts.map((post) => (
+						<PostCard post={post} />
+					))}
+				</ul>
+			)
+		}
+	</main>
+</BaseLayout>

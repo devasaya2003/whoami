@@ -1,0 +1,21 @@
+---
+import { type BlogPostListItem, formatPostDate } from "../lib/blogs";
+
+interface Props {
+	post: BlogPostListItem;
+}
+
+const { post } = Astro.props;
+---
+
+<li>
+	<a class="post-link" href={`/blogs/${post.slug}`}>
+		<span class="post-date">{formatPostDate(post.publishedAt)}</span>
+		<h2 class="post-title">{post.title}</h2>
+		{
+			post.description ? (
+				<p class="post-desc">{post.description}</p>
+			) : null
+		}
+	</a>
+</li>

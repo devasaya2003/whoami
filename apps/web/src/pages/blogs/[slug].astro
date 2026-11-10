@@ -1,0 +1,28 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { formatPostDate, getPost } from "../../lib/blogs";
+import { sanitizeContentHtml } from "../../lib/sanitize";
+
+const { slug } = Astro.params;
+
+if (!slug) {
+	return Astro.redirect("/blogs");
+}
+
+const post = await getPost(slug);
+
+if (!post) {
+	return Astro.rewrite("/404");
+}
+
+const contentHtml = sanitizeContentHtml(post.contentHtml ?? "");
+---
+
+<BaseLayout title={post.title} description={post.description} current="blogs">
+	<article class="reading">
+		<p class="article-meta">{formatPostDate(post.publishedAt)}</p>
+		<h1 class="article-title">{post.title}</h1>
+		{post.description ? <p class="article-desc">{post.description}</p> : null}
+		<div class="prose" set:html={contentHtml} />
+	</article>
+</BaseLayout>

@@ -1,0 +1,58 @@
+---
+import Header from "../components/Header.astro";
+import "../styles/global.css";
+
+interface Props {
+	title?: string;
+	description?: string;
+	current?: "home" | "blogs";
+}
+
+const {
+	title = "whoami",
+	description = "A portfolio of tiny apps and blogs.",
+	current,
+} = Astro.props;
+
+const pageTitle = title === "whoami" ? title : `${title} · whoami`;
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="description" content={description} />
+		<meta name="generator" content={Astro.generator} />
+		<link rel="icon" href="/favicon.ico" sizes="any" />
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap"
+			rel="stylesheet"
+		/>
+		<title>{pageTitle}</title>
+		<script is:inline>
+			(() => {
+				const stored = localStorage.getItem("whoami-theme");
+				const prefersDark = window.matchMedia(
+					"(prefers-color-scheme: dark)",
+				).matches;
+				const theme =
+					stored === "light" || stored === "dark"
+						? stored
+						: prefersDark
+							? "dark"
+							: "light";
+				document.documentElement.classList.toggle("dark", theme === "dark");
+			})();
+		</script>
+	</head>
+	<body>
+		<div class="site-shell">
+			<Header current={current} />
+			<slot />
+			<footer class="site-footer">&copy; {new Date().getFullYear()} whoami</footer>
+		</div>
+	</body>
+</html>

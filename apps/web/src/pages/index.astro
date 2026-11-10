@@ -1,0 +1,59 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { formatPostDate, listPosts } from "../lib/blogs";
+
+const posts = await listPosts();
+---
+
+<BaseLayout
+	title="whoami"
+	description="The Unexpected CTO — a portfolio of cringe, interesting, and sacrilegious projects."
+	current="home"
+>
+	<main class="reading home">
+		<h1 class="home-title">The Unexpected CTO</h1>
+
+		<div class="home-prose">
+			<p>
+				I became a CTO at an unexpected stage of my life. From then onwards I
+				became the dumbest person I've ever been!
+			</p>
+			<p>And I'm glad that I was (still am)</p>
+			<p>Because I can keep learning and become less dumber!</p>
+			<p>
+				Everything here is a collection of my cringe, interesting and
+				sacriligious projects, feel free to critisize the hell out of this
+				stuff!
+			</p>
+			<ul>
+				<li>
+					<a href="/blogs">Blogs</a> - Some things I wrote...
+				</li>
+			</ul>
+			<p class="home-note">
+				Last updated in November 2026. The code for everything here lives in a
+				monorepo, and more apps are on the way.
+			</p>
+		</div>
+
+		<section class="home-posts" aria-labelledby="home-posts-heading">
+			<h2 id="home-posts-heading">Blog posts</h2>
+			{
+				posts.length === 0 ? (
+					<p class="muted">No posts yet.</p>
+				) : (
+					<ul class="home-post-list">
+						{posts.map((post) => (
+							<li>
+								<a href={`/blogs/${post.slug}`}>{post.title}</a>
+								{post.publishedAt ? (
+									<span class="muted"> · {formatPostDate(post.publishedAt)}</span>
+								) : null}
+							</li>
+						))}
+					</ul>
+				)
+			}
+		</section>
+	</main>
+</BaseLayout>

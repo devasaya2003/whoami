@@ -4,26 +4,26 @@
 	"type": "module",
 	"private": true,
 	"scripts": {
-		"dev": "next dev --port 3000",
-		"build": "next build",
-		"start": "next start",
+		"dev": "astro dev --port 3000",
+		"build": "astro build",
+		"preview": "astro preview --port 3000",
+		"astro": "astro",
 		"lint": "biome check",
-		"check-types": "next typegen && tsc --noEmit"
+		"check-types": "tsc --noEmit",
+		"deploy": "astro build && wrangler deploy",
+		"cf:typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
 	},
 	"dependencies": {
-		"@repo/ui": "*",
-		"next": "16.3.8",
-		"react": "19.2.8",
-		"react-dom": "19.2.8"
+		"@astrojs/cloudflare": "^12.6.12",
+		"astro": "^5.16.6",
+		"sanitize-html": "^2.17.0"
 	},
 	"devDependencies": {
 		"@repo/biome-config": "*",
 		"@repo/typescript-config": "*",
-		"@tailwindcss/postcss": "^4.1.0",
 		"@types/node": "26.4.1",
-		"@types/react": "19.2.18",
-		"@types/react-dom": "19.2.5",
-		"tailwindcss": "^4.1.0",
-		"typescript": "7.0.2"
+		"@types/sanitize-html": "^2.16.0",
+		"typescript": "7.0.2",
+		"wrangler": "^4.54.0"
 	}
 }
