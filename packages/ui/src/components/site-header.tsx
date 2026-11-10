@@ -1,7 +1,14 @@
 import { ThemeToggle } from "@repo/ui/components/theme-toggle";
 import Link from "next/link";
+import type { ReactNode } from "react";
 
-export function SiteHeader({ baseUrl }: { baseUrl: string }) {
+export function SiteHeader({
+	baseUrl,
+	children,
+}: {
+	baseUrl: string;
+	children?: ReactNode;
+}) {
 	const origin = baseUrl.replace(/\/$/, "");
 
 	return (
@@ -17,6 +24,7 @@ export function SiteHeader({ baseUrl }: { baseUrl: string }) {
 				<Link className="hover:underline" href={`${origin}/blogs`}>
 					Blogs
 				</Link>
+				{children}
 			</nav>
 		</header>
 	);
