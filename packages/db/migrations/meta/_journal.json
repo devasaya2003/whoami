@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1794342283971,
+      "tag": "0000_even_kang",
+      "breakpoints": true
+    }
+  ]
+}

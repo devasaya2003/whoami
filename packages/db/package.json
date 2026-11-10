@@ -1,0 +1,28 @@
+{
+	"name": "@repo/db",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts",
+		"./schema": "./src/schema/index.ts",
+		"./client": "./src/client.ts"
+	},
+	"scripts": {
+		"lint": "biome check",
+		"check-types": "tsc --noEmit",
+		"db:generate": "drizzle-kit generate",
+		"db:studio": "drizzle-kit studio"
+	},
+	"dependencies": {
+		"drizzle-orm": "^0.45.4"
+	},
+	"devDependencies": {
+		"@cloudflare/workers-types": "^5.20261110.1",
+		"@repo/biome-config": "*",
+		"@repo/typescript-config": "*",
+		"@types/node": "26.4.1",
+		"drizzle-kit": "^0.31.11",
+		"typescript": "7.0.2"
+	}
+}
