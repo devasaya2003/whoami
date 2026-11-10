@@ -8,16 +8,30 @@
 		"build": "next build",
 		"start": "next start",
 		"lint": "biome check",
-		"check-types": "next typegen && tsc --noEmit"
+		"check-types": "next typegen && tsc --noEmit",
+		"preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+		"deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+		"db:migrate:local": "wrangler d1 migrations apply portfolio --local",
+		"db:migrate": "wrangler d1 migrations apply portfolio --remote",
+		"cf:typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
 	},
 	"dependencies": {
+		"@blocksuite/affine": "^0.22.4",
+		"@clerk/nextjs": "^6.36.5",
+		"@elysiajs/eden": "^1.4.6",
+		"@opennextjs/cloudflare": "^1.14.0",
+		"@repo/db": "*",
+		"@repo/storage": "*",
 		"@repo/ui": "*",
+		"drizzle-orm": "^0.45.4",
+		"elysia": "^1.4.19",
 		"next": "16.3.8",
 		"react": "19.2.8",
 		"react-dom": "19.2.8",
-		"react-markdown": "^10.1.0"
+		"yjs": "^13.6.27"
 	},
 	"devDependencies": {
+		"@cloudflare/workers-types": "^5.20261110.1",
 		"@repo/biome-config": "*",
 		"@repo/typescript-config": "*",
 		"@tailwindcss/postcss": "^4.1.0",
@@ -25,6 +39,7 @@
 		"@types/react": "19.2.18",
 		"@types/react-dom": "19.2.5",
 		"tailwindcss": "^4.1.0",
-		"typescript": "7.0.2"
+		"typescript": "7.0.2",
+		"wrangler": "^4.54.0"
 	}
 }
