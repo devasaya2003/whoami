@@ -407,9 +407,12 @@ app-id: YOUR-APP-ID`}</CodeBlock>
 									GET {host}/api/v1/blogs/{"{blog-id-or-slug}"}
 								</p>
 								<p className="text-muted-foreground text-xs">
-									Returns HTML + Lexical JSON for a published blog. Unpublished
-									blogs respond with 404.
+									Returns a published blog. Pass optional header{" "}
+									<code>type</code> as a JSON array of formats:{" "}
+									<code>html</code>, <code>json</code>, <code>md</code>. Defaults
+									to <code>["html"]</code>. Unpublished blogs respond with 404.
 								</p>
+								<CodeBlock>{`type: ["html","json","md"]`}</CodeBlock>
 								<CodeBlock>{`{
   "id": "...",
   "slug": "...",
@@ -417,6 +420,7 @@ app-id: YOUR-APP-ID`}</CodeBlock>
   "desc": "...",
   "content": "<p>...</p>",
   "content_json": { "root": { "...": "Lexical editor state" } },
+  "content_md": "# ...",
   "published_at": "...",
   "created_at": "...",
   "updated_at": "..."
@@ -427,8 +431,9 @@ app-id: YOUR-APP-ID`}</CodeBlock>
 								<p className="font-medium text-sm">Rendering</p>
 								<p className="text-muted-foreground text-xs">
 									Use <code>content</code> for static sites (recommended). Use{" "}
-									<code>content_json</code> when you want a Lexical (or custom)
-									client renderer.
+									<code>content_json</code> for a Lexical client renderer, or{" "}
+									<code>content_md</code> for Markdown consumers. Only formats
+									listed in <code>type</code> are included.
 								</p>
 								<ul className="list-disc space-y-1.5 pl-4 text-muted-foreground text-xs">
 									<li>
@@ -455,6 +460,11 @@ app-id: YOUR-APP-ID`}</CodeBlock>
 										</code>{" "}
 										in a read-only composer (same nodes as the CMS: rich text,
 										lists, code, images).
+									</li>
+									<li>
+										<strong className="text-foreground">Markdown:</strong>{" "}
+										<code>content_md</code> is derived from the published HTML
+										(headings, lists, links, code, images).
 									</li>
 									<li>
 										<strong className="text-foreground">Media:</strong> image{" "}
