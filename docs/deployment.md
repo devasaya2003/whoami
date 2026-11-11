@@ -156,8 +156,10 @@ Then:
 
 ```bash
 bun run db:migrate    # remote D1
-bun run deploy        # OpenNext build + wrangler deploy
+bun run deploy        # OpenNext build + wrangler deploy (--keep-vars)
 ```
+
+`deploy` passes `--keep-vars` so dashboard/runtime secrets are **not** wiped on each upload. If you already deployed without it, re-run the `wrangler secret put` commands above, then deploy again.
 
 Attach a custom domain in the Cloudflare dashboard (Workers → `whoami-blogs` → Domains), e.g. `blogs.yourdomain.com`. Update Clerk allowed origins to match.
 

@@ -20,14 +20,30 @@ function blogsOrigin() {
 	return (process.env.NEXT_PUBLIC_BLOGS_URL || "").replace(/\/$/, "");
 }
 
+function isHttpError(
+	error: unknown,
+): error is { status: number; body: unknown } {
+	return (
+		error instanceof HttpError ||
+		(typeof error === "object" &&
+			error !== null &&
+			"status" in error &&
+			"body" in error &&
+			typeof (error as { status: unknown }).status === "number")
+	);
+}
+
 function errorResponse(error: unknown) {
-	if (error instanceof HttpError) {
+	if (isHttpError(error)) {
 		return new Response(JSON.stringify(error.body), {
 			status: error.status,
 			headers: { "content-type": "application/json" },
 		});
 	}
-	console.error(error);
+	console.error(
+		"[blogs-api]",
+		error instanceof Error ? error.stack || error.message : error,
+	);
 	return new Response(JSON.stringify({ error: "Internal Server Error" }), {
 		status: 500,
 		headers: { "content-type": "application/json" },

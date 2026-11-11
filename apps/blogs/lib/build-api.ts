@@ -18,11 +18,24 @@ export function buildApi(
 ) {
 	return new Elysia({ name: "blogs-api" })
 		.onError(({ error, set }) => {
-			if (error instanceof HttpError) {
-				set.status = error.status;
-				return error.body;
+			const http =
+				error instanceof HttpError
+					? error
+					: typeof error === "object" &&
+							error !== null &&
+							"status" in error &&
+							"body" in error &&
+							typeof (error as { status: unknown }).status === "number"
+						? (error as { status: number; body: unknown })
+						: null;
+			if (http) {
+				set.status = http.status;
+				return http.body;
 			}
-			console.error(error);
+			console.error(
+				"[blogs-api]",
+				error instanceof Error ? error.stack || error.message : error,
+			);
 			set.status = 500;
 			return { error: "Internal Server Error" };
 		})
