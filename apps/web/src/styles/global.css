@@ -202,6 +202,48 @@ html.dark .theme-toggle .icon-moon {
 	font-style: italic;
 }
 
+.home-socials {
+	display: grid;
+	grid-auto-flow: column;
+	grid-auto-columns: max-content;
+	align-items: center;
+	gap: 0.75rem;
+	margin: 1.25rem 0 0;
+}
+
+.home-socials a {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 2.25rem;
+	height: 2.25rem;
+	border-radius: 999px;
+	color: var(--muted);
+	text-decoration: none;
+	transition:
+		color 0.15s ease,
+		background-color 0.15s ease;
+}
+
+.home-socials a:hover,
+.home-socials a:focus-visible {
+	color: var(--fg);
+	background: color-mix(in oklab, var(--fg) 8%, transparent);
+	outline: none;
+}
+
+.home-social-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.home-social-icon svg {
+	width: 1.125rem;
+	height: 1.125rem;
+	display: block;
+}
+
 .home-posts {
 	margin-top: 4rem;
 }

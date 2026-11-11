@@ -2,9 +2,11 @@
 import BaseLayout from "../layouts/BaseLayout.astro";
 import { site } from "../config/site";
 import { formatPostDate, listPosts } from "../lib/blogs";
+import { fetchTechQuote, formatTechQuote } from "../lib/quote";
 
-const posts = await listPosts();
+const [posts, quote] = await Promise.all([listPosts(), fetchTechQuote()]);
 const { home } = site;
+const note = quote ? formatTechQuote(quote) : home.note;
 ---
 
 <BaseLayout title={site.title} description={site.description} current="home">
@@ -22,7 +24,24 @@ const { home } = site;
 					))
 				}
 			</ul>
-			<p class="home-note">{home.note}</p>
+			<p class="home-note">{note}</p>
+			{
+				site.socials.length > 0 ? (
+					<div class="home-socials" aria-label="Social links">
+						{site.socials.map((social) => (
+							<a
+								href={social.href}
+								aria-label={social.label}
+								title={social.label}
+								target="_blank"
+								rel="noopener noreferrer"
+							>
+								<span class="home-social-icon" set:html={social.icon} />
+							</a>
+						))}
+					</div>
+				) : null
+			}
 		</div>
 
 		<section class="home-posts" aria-labelledby="home-posts-heading">
