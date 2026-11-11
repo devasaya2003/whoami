@@ -1,21 +1,11 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
-import { newId, now, userApis, users } from "@repo/db";
-import type { Db } from "@repo/db";
+import { newId, now, userApis, users, type Db } from "@repo/db";
 import { eq } from "drizzle-orm";
+import { HttpError } from "@/db/schema/http-error";
 import { sha256Hex } from "./hash";
 
 export type UserRow = typeof users.$inferSelect;
-
-export class HttpError extends Error {
-	status: number;
-	body: unknown;
-
-	constructor(status: number, body: unknown) {
-		super(typeof body === "string" ? body : JSON.stringify(body));
-		this.status = status;
-		this.body = body;
-	}
-}
+export { HttpError };
 
 export async function requireClerkUser(db: Db): Promise<UserRow> {
 	const session = await auth();
