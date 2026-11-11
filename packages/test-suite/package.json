@@ -1,0 +1,21 @@
+{
+	"name": "@repo/test-suite",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"exports": {
+		"./vitest-config": "./src/vitest-config.ts"
+	},
+	"scripts": {
+		"check-types": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@vitest/coverage-v8": "^5.0.5",
+		"vitest": "^5.0.5"
+	},
+	"devDependencies": {
+		"@repo/typescript-config": "*",
+		"@types/node": "^20",
+		"typescript": "7.0.2"
+	}
+}
