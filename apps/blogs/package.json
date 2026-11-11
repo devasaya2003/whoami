@@ -5,7 +5,8 @@
 	"private": true,
 	"scripts": {
 		"dev": "next dev --port 3001",
-		"build": "next build",
+		"build": "vitest run --coverage && next build",
+		"test": "vitest run --coverage",
 		"start": "next start",
 		"lint": "biome check",
 		"check-types": "next typegen && tsc --noEmit",
@@ -31,6 +32,7 @@
 		"@lexical/utils": "^0.53.0",
 		"@opennextjs/cloudflare": "^1.14.0",
 		"@repo/db": "*",
+		"@repo/repo-rules": "*",
 		"@repo/storage": "*",
 		"@repo/ui": "*",
 		"drizzle-orm": "^0.45.4",
@@ -46,6 +48,9 @@
 	"devDependencies": {
 		"@cloudflare/workers-types": "^5.20261110.1",
 		"@repo/biome-config": "*",
+		"@repo/test-suite": "*",
+		"@vitest/coverage-v8": "^5.0.5",
+		"vitest": "^5.0.5",
 		"@repo/typescript-config": "*",
 		"@tailwindcss/postcss": "^4.1.0",
 		"@types/node": "26.4.1",
