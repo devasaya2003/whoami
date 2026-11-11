@@ -60,4 +60,4 @@ export function buildApi(
 		);
 }
 
-export type Api = ReturnType<typeof buildApi>;
+export type { Api } from "./api-types";

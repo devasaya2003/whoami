@@ -13,7 +13,7 @@ import {
 import { Input } from "@repo/ui/components/ui/input";
 import { Label } from "@repo/ui/components/ui/label";
 import { useMemo, useState, type FormEvent } from "react";
-import { api } from "../lib/api";
+import { blogsApi, okJson } from "../lib/api";
 
 type CreateAppDialogProps = {
 	open: boolean;
@@ -66,12 +66,10 @@ export function CreateAppDialog({
 		setBusy(true);
 		setSubmitError(null);
 		try {
-			const app = await api<{ id: string; name: string; url: string }>(
-				"/api/admin/apps",
-				{
-					method: "POST",
-					body: JSON.stringify({ name: name.trim(), url: url.trim() }),
-				},
+			const app = await okJson<{ id: string; name: string; url: string }>(
+				await blogsApi.api.admin.apps.$post({
+					json: { name: name.trim(), url: url.trim() },
+				}),
 			);
 			setName("");
 			setUrl("");

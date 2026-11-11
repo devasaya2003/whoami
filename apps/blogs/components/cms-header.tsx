@@ -11,6 +11,7 @@ import {
 } from "@repo/ui/components/ui/tooltip";
 import { PencilIcon, PlusIcon, SettingsIcon } from "lucide-react";
 import { useEffect, useState } from "react";
+import { blogsApi } from "../lib/api";
 import { resolvePersonName } from "../lib/display-name";
 import { SettingsDialog } from "./settings-dialog";
 
@@ -39,7 +40,7 @@ export function CmsHeader({
 		async function load() {
 			let dbName: string | null = null;
 			try {
-				const res = await fetch("/api/admin/me");
+				const res = await blogsApi.api.admin.me.$get();
 				if (res.ok) {
 					const me = (await res.json()) as { name: string | null; email: string };
 					dbName = me.name;

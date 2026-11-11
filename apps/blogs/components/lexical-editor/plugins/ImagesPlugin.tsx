@@ -25,6 +25,7 @@ import {
 } from "lexical";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { blogsApi, readApiError } from "@/lib/api";
 import { $createImageNode, $isImageNode, ImageNode } from "../nodes/ImageNode";
 
 export type InsertImagePayload = {
@@ -39,26 +40,11 @@ export const OPEN_IMAGE_UPLOAD_COMMAND: LexicalCommand<void> = createCommand(
 	"OPEN_IMAGE_UPLOAD_COMMAND",
 );
 
-async function readApiError(res: Response): Promise<string> {
-	const text = await res.text();
-	if (!text) return `Upload failed (${res.status})`;
-	try {
-		const json = JSON.parse(text) as { error?: string };
-		if (json.error) return json.error;
-	} catch {
-		// plain text body
-	}
-	return text;
-}
-
 async function uploadImage(file: File): Promise<{ key?: string; url: string }> {
-	const form = new FormData();
-	form.set("file", file);
-	let res: Response;
+	let res: Awaited<ReturnType<typeof blogsApi.api.admin.uploads.$post>>;
 	try {
-		res = await fetch("/api/admin/uploads", {
-			method: "POST",
-			body: form,
+		res = await blogsApi.api.admin.uploads.$post({
+			form: { file },
 		});
 	} catch (error) {
 		throw new Error(

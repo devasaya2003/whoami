@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { api } from "../lib/api";
+import { blogsApi, okJson } from "../lib/api";
 import { CmsHeader } from "./cms-header";
 import { CreateAppDialog } from "./create-app-dialog";
 import { ResourceGrid, type ResourceCardItem } from "./resource-grid";
@@ -22,7 +22,7 @@ export function AppsDashboard() {
 
 	const refresh = useCallback(async () => {
 		setError(null);
-		const rows = await api<AppRow[]>("/api/admin/apps");
+		const rows = await okJson<AppRow[]>(await blogsApi.api.admin.apps.$get());
 		setApps(rows);
 	}, []);
 

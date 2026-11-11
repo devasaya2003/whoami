@@ -15,7 +15,7 @@ import { Label } from "@repo/ui/components/ui/label";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { toast } from "sonner";
-import { api } from "../lib/api";
+import { blogsApi, okJson } from "../lib/api";
 
 type CreatedKey = {
 	id: string;
@@ -56,10 +56,9 @@ export function CreateApiKeyDialog({
 		if (!trimmed || busy) return;
 		setBusy(true);
 		try {
-			const row = await api<CreatedKey>("/api/admin/apis", {
-				method: "POST",
-				body: JSON.stringify({ name: trimmed }),
-			});
+			const row = await okJson<CreatedKey>(
+				await blogsApi.api.admin.apis.$post({ json: { name: trimmed } }),
+			);
 			setCreated(row);
 			onCreated({
 				id: row.id,

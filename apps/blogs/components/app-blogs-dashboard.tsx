@@ -4,7 +4,7 @@ import { Button } from "@repo/ui/components/ui/button";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { api } from "../lib/api";
+import { blogsApi, okJson } from "../lib/api";
 import { CmsHeader } from "./cms-header";
 import { ResourceGrid, type ResourceCardItem } from "./resource-grid";
 
@@ -38,8 +38,16 @@ export function AppBlogsDashboard({ appId }: AppBlogsDashboardProps) {
 	const refresh = useCallback(async () => {
 		setError(null);
 		const [appRow, blogRows] = await Promise.all([
-			api<AppRow>(`/api/admin/apps/${appId}`),
-			api<BlogCard[]>(`/api/admin/apps/${appId}/blogs`),
+			okJson<AppRow>(
+				await blogsApi.api.admin.apps[":appId"].$get({
+					param: { appId },
+				}),
+			),
+			okJson<BlogCard[]>(
+				await blogsApi.api.admin.apps[":appId"].blogs.$get({
+					param: { appId },
+				}),
+			),
 		]);
 		setApp(appRow);
 		setBlogs(blogRows);
@@ -55,12 +63,14 @@ export function AppBlogsDashboard({ appId }: AppBlogsDashboardProps) {
 		setBusy(true);
 		setError(null);
 		try {
-			const created = await api<{
+			const created = await okJson<{
 				blog: { id: string };
-			}>(`/api/admin/apps/${appId}/blogs`, {
-				method: "POST",
-				body: JSON.stringify({ title: "Untitled" }),
-			});
+			}>(
+				await blogsApi.api.admin.apps[":appId"].blogs.$post({
+					param: { appId },
+					json: { title: "Untitled" },
+				}),
+			);
 			router.push(`/editor/${created.blog.id}`);
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Failed to create blog");

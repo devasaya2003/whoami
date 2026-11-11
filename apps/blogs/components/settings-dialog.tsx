@@ -22,7 +22,7 @@ import {
 import { CopyIcon, PlusIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { api } from "../lib/api";
+import { blogsApi, okJson } from "../lib/api";
 import { resolvePersonName } from "../lib/display-name";
 import { CreateApiKeyDialog } from "./create-api-key-dialog";
 
@@ -74,7 +74,9 @@ export function SettingsDialog({
 	const refreshKeys = useCallback(async () => {
 		setLoadingKeys(true);
 		try {
-			const rows = await api<ApiKeyRow[]>("/api/admin/apis");
+			const rows = await okJson<ApiKeyRow[]>(
+				await blogsApi.api.admin.apis.$get(),
+			);
 			setKeys(rows);
 		} catch (err) {
 			toast.error(err instanceof Error ? err.message : "Failed to load API keys");
@@ -90,7 +92,7 @@ export function SettingsDialog({
 		async function load() {
 			let dbName: string | null = null;
 			try {
-				const res = await fetch("/api/admin/me");
+				const res = await blogsApi.api.admin.me.$get();
 				if (res.ok) {
 					const me = (await res.json()) as { name: string | null };
 					dbName = me.name;
@@ -112,7 +114,9 @@ export function SettingsDialog({
 		async function loadApps() {
 			setLoadingApps(true);
 			try {
-				const rows = await api<AppRow[]>("/api/admin/apps");
+				const rows = await okJson<AppRow[]>(
+					await blogsApi.api.admin.apps.$get(),
+				);
 				if (!cancelled) setApps(rows);
 			} catch {
 				if (!cancelled) setApps([]);
@@ -138,18 +142,19 @@ export function SettingsDialog({
 		}
 		setSavingName(true);
 		try {
-			const res = await fetch("/api/admin/me", {
-				method: "PATCH",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({ name: next }),
-			});
-			if (!res.ok) throw new Error(await res.text());
-			// Sync Clerk profile name only — never touch email.
-			const parts = next.split(/\s+/);
-			await user?.update({
-				firstName: parts[0] ?? next,
-				lastName: parts.slice(1).join(" ") || undefined,
-			});
+			await okJson(
+				await blogsApi.api.admin.me.$patch({ json: { name: next } }),
+			);
+			// Best-effort Clerk profile sync — DB is source of truth.
+			try {
+				const parts = next.split(/\s+/);
+				await user?.update({
+					firstName: parts[0] ?? next,
+					lastName: parts.slice(1).join(" ") || undefined,
+				});
+			} catch (clerkErr) {
+				console.warn("Clerk profile name sync skipped", clerkErr);
+			}
 			setDisplayName(next);
 			onDisplayNameChange?.(next);
 			toast.success("Name updated");
@@ -163,7 +168,11 @@ export function SettingsDialog({
 	async function revoke(id: string) {
 		setRevokingId(id);
 		try {
-			await api(`/api/admin/apis/${id}`, { method: "DELETE" });
+			await okJson(
+				await blogsApi.api.admin.apis[":apiId"].$delete({
+					param: { apiId: id },
+				}),
+			);
 			setKeys((rows) => rows.filter((row) => row.id !== id));
 			toast.success("API key revoked");
 		} catch (err) {

@@ -17,27 +17,14 @@ import {
 import { Loader2Icon, Trash2Icon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { blogsApi, readApiError } from "@/lib/api";
 import { $isImageNode } from "./ImageNode";
 
-async function readApiError(res: Response): Promise<string> {
-	const text = await res.text();
-	if (!text) return `Delete failed (${res.status})`;
-	try {
-		const json = JSON.parse(text) as { error?: string };
-		if (json.error) return json.error;
-	} catch {
-		// plain text
-	}
-	return text;
-}
-
 async function deleteUpload(src: string) {
-	let res: Response;
+	let res: Awaited<ReturnType<typeof blogsApi.api.admin.uploads.$delete>>;
 	try {
-		res = await fetch("/api/admin/uploads", {
-			method: "DELETE",
-			headers: { "content-type": "application/json" },
-			body: JSON.stringify({ url: src }),
+		res = await blogsApi.api.admin.uploads.$delete({
+			json: { url: src },
 		});
 	} catch (error) {
 		throw new Error(

@@ -14,6 +14,7 @@ import { ArrowLeftIcon, GlobeIcon, GlobeLockIcon, SettingsIcon } from "lucide-re
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { blogsApi, okJson } from "@/lib/api";
 import { NotionEditor } from "@/components/lexical-editor/editor";
 import { PublishedHtml } from "@/components/published-html";
 import { SettingsDialog } from "@/components/settings-dialog";
@@ -85,9 +86,11 @@ export function BlogEditor({ blogId }: { blogId: string }) {
 		setSaveStatus("idle");
 
 		async function load() {
-			const res = await fetch(`/api/admin/blogs/${blogId}`);
-			if (!res.ok) throw new Error("Failed to load blog");
-			const blog = (await res.json()) as BlogPayload;
+			const blog = await okJson<BlogPayload>(
+				await blogsApi.api.admin.blogs[":blogId"].$get({
+					param: { blogId },
+				}),
+			);
 			if (cancelled) return;
 
 			setTitle(blog.title);
@@ -134,18 +137,18 @@ export function BlogEditor({ blogId }: { blogId: string }) {
 				json,
 			});
 
-			const res = await fetch(`/api/admin/blogs/${blogId}`, {
-				method: "PATCH",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({
-					title: t,
-					description: d,
-					status: "draft",
-					docSnapshot,
-					contentHtml: html,
+			await okJson(
+				await blogsApi.api.admin.blogs[":blogId"].$patch({
+					param: { blogId },
+					json: {
+						title: t,
+						description: d,
+						status: "draft",
+						docSnapshot,
+						contentHtml: html,
+					},
 				}),
-			});
-			if (!res.ok) throw new Error(await res.text());
+			);
 			setContentHtml(html);
 			setSaveStatus("saved");
 		} catch (err) {
@@ -210,15 +213,15 @@ export function BlogEditor({ blogId }: { blogId: string }) {
 				});
 			}
 
-			const res = await fetch(`/api/admin/blogs/${blogId}`, {
-				method: "PATCH",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({
-					status: "public",
-					contentHtml: html,
+			await okJson(
+				await blogsApi.api.admin.blogs[":blogId"].$patch({
+					param: { blogId },
+					json: {
+						status: "public",
+						contentHtml: html,
+					},
 				}),
-			});
-			if (!res.ok) throw new Error(await res.text());
+			);
 
 			setContentHtml(html);
 			setStatus("public");
@@ -237,12 +240,12 @@ export function BlogEditor({ blogId }: { blogId: string }) {
 		if (statusBusy) return;
 		setStatusBusy(true);
 		try {
-			const res = await fetch(`/api/admin/blogs/${blogId}`, {
-				method: "PATCH",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({ status: "draft" }),
-			});
-			if (!res.ok) throw new Error(await res.text());
+			await okJson(
+				await blogsApi.api.admin.blogs[":blogId"].$patch({
+					param: { blogId },
+					json: { status: "draft" },
+				}),
+			);
 
 			setStatus("draft");
 			latest.current = { ...latest.current, status: "draft" };
