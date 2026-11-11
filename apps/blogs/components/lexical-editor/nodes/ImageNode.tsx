@@ -12,6 +12,7 @@ import type {
 } from "lexical";
 import { $applyNodeReplacement, DecoratorNode } from "lexical";
 import type { JSX } from "react";
+import { ImageComponent } from "./ImageComponent";
 
 export type SerializedImageNode = Spread<
 	{
@@ -47,10 +48,14 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
 		this.__altText = altText;
 	}
 
-	createDOM(_config: EditorConfig): HTMLElement {
-		const span = document.createElement("span");
-		span.className = "editor-image";
-		return span;
+	createDOM(config: EditorConfig): HTMLElement {
+		const div = document.createElement("div");
+		const themeClass = config.theme.image;
+		div.className =
+			typeof themeClass === "string" && themeClass.length > 0
+				? themeClass
+				: "editor-image";
+		return div;
 	}
 
 	updateDOM(): false {
@@ -100,11 +105,9 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
 
 	decorate(): JSX.Element {
 		return (
-			// eslint-disable-next-line @next/next/no-img-element
-			<img
-				alt={this.__altText}
-				className="my-2 max-h-[480px] max-w-full rounded-md"
-				draggable="false"
+			<ImageComponent
+				altText={this.__altText}
+				nodeKey={this.getKey()}
 				src={this.__src}
 			/>
 		);
@@ -112,6 +115,10 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
 
 	isInline(): false {
 		return false;
+	}
+
+	isKeyboardSelectable(): true {
+		return true;
 	}
 }
 

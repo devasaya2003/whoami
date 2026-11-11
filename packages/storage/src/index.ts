@@ -1,1 +1,11 @@
-export { publicObjectUrl, putObject, uploadKey } from "./r2";
+export {
+	deleteObject,
+	keyFromMediaUrl,
+	keyFromPublicUrl,
+	mediaProxyPath,
+	publicObjectUrl,
+	putObject,
+	resolveUploadKey,
+	uploadKey,
+	userUploadPrefix,
+} from "./r2";

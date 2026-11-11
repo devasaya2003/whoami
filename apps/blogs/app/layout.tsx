@@ -1,5 +1,6 @@
 import { ClerkProvider } from "@clerk/nextjs";
 import { ThemeProvider } from "@repo/ui/components/theme-provider";
+import { Toaster } from "@repo/ui/components/ui/sonner";
 import type { Metadata } from "next";
 import "@repo/ui/globals.css";
 
@@ -24,6 +25,7 @@ export default function RootLayout({
 						enableSystem
 					>
 						{children}
+						<Toaster closeButton position="bottom-right" richColors />
 					</ThemeProvider>
 				</ClerkProvider>
 			</body>

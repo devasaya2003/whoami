@@ -9,8 +9,9 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@repo/ui/components/ui/tooltip";
-import { PlusIcon, SettingsIcon } from "lucide-react";
+import { PencilIcon, PlusIcon, SettingsIcon } from "lucide-react";
 import { useEffect, useState } from "react";
+import { resolvePersonName } from "../lib/display-name";
 import { SettingsDialog } from "./settings-dialog";
 
 type CmsHeaderProps = {
@@ -36,28 +37,26 @@ export function CmsHeader({
 		let cancelled = false;
 
 		async function load() {
+			let dbName: string | null = null;
 			try {
 				const res = await fetch("/api/admin/me");
 				if (res.ok) {
 					const me = (await res.json()) as { name: string | null; email: string };
-					const fromDb = me.name?.trim();
-					if (!cancelled && fromDb) {
-						setDisplayName(fromDb);
-						return;
-					}
+					dbName = me.name;
 				}
 			} catch {
-				// fall through to Clerk
+				// fall through to Clerk name fields only
 			}
 
 			if (cancelled) return;
-			const fromClerk =
-				user?.fullName?.trim() ||
-				[user?.firstName, user?.lastName].filter(Boolean).join(" ").trim() ||
-				user?.primaryEmailAddress?.emailAddress ||
-				user?.emailAddresses[0]?.emailAddress ||
-				"User";
-			setDisplayName(fromClerk);
+			setDisplayName(
+				resolvePersonName({
+					dbName,
+					fullName: user?.fullName,
+					firstName: user?.firstName,
+					lastName: user?.lastName,
+				}),
+			);
 		}
 
 		void load();
@@ -69,10 +68,27 @@ export function CmsHeader({
 	return (
 		<TooltipProvider>
 			<header className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4 px-6 pb-6 pt-12">
-				<div className="min-w-0 flex-1">
+				<div className="group flex min-w-0 flex-1 items-center gap-2">
 					<p className="truncate text-2xl font-medium tracking-tight">
 						{displayName || (isLoaded ? "User" : "…")}
 					</p>
+					<Tooltip>
+						<TooltipTrigger
+							render={
+								<Button
+									aria-label="Edit profile settings"
+									className="rounded-full opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+									onClick={() => setSettingsOpen(true)}
+									size="icon"
+									type="button"
+									variant="outline"
+								/>
+							}
+						>
+							<PencilIcon />
+						</TooltipTrigger>
+						<TooltipContent>Edit profile</TooltipContent>
+					</Tooltip>
 				</div>
 
 				<nav className="flex shrink-0 items-center gap-2">

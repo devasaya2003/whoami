@@ -1,6 +1,6 @@
 "use client";
 
-import { CodeExtension } from "@lexical/code";
+import { CodePrismExtension } from "@lexical/code-prism";
 import {
 	ClickAfterLastBlockExtension,
 	SelectBlockExtension,
@@ -21,12 +21,13 @@ import {
 } from "lexical";
 import { useEffect, useRef, useState } from "react";
 import { ImageNode } from "./nodes/ImageNode";
+import { CodeActionMenuPlugin } from "./plugins/CodeActionMenuPlugin";
 import { DragPlugin } from "./plugins/DragPlugin";
 import { ImagesPlugin } from "./plugins/ImagesPlugin";
 import { SlashMenuPlugin } from "./plugins/SlashMenuPlugin";
 
 const theme = {
-	code: "my-2 overflow-x-auto rounded-md bg-zinc-100 p-3 font-mono text-[0.875rem] dark:bg-zinc-900",
+	code: "editor-code-block my-2 block w-full overflow-x-auto rounded-md bg-zinc-100 px-3 py-3 font-mono text-[0.875rem] leading-relaxed text-zinc-800 whitespace-pre dark:bg-zinc-900 dark:text-zinc-100 [&:is(.editor-code-wrap)]:whitespace-pre-wrap [&:is(.editor-code-wrap)]:break-words",
 	codeHighlight: {
 		atrule: "text-purple-600 dark:text-purple-300",
 		attr: "text-sky-700 dark:text-sky-300",
@@ -64,6 +65,7 @@ const theme = {
 		h2: "mt-2 mb-[0.15rem] text-[1.3rem] font-semibold leading-[1.3]",
 		h3: "mt-[0.4rem] mb-[0.1rem] text-[1.1rem] font-semibold leading-[1.35]",
 	},
+	image: "editor-image my-3 block max-w-full",
 	list: {
 		listitem: "my-[0.1rem] leading-[1.6]",
 		ol: "my-[0.2rem] list-decimal pl-5",
@@ -74,7 +76,7 @@ const theme = {
 		"my-[0.4rem] border-l-[3px] [border-left-style:solid] border-zinc-300 pl-3.5 italic text-zinc-500 dark:border-zinc-700 dark:text-zinc-400",
 	text: {
 		bold: "font-bold",
-		code: "rounded-[3px] bg-[rgba(135,131,120,0.15)] px-[0.3em] py-[0.1em] font-mono text-[0.875em] dark:bg-white/10",
+		code: "rounded-[4px] bg-[rgba(135,131,120,0.2)] px-[0.35em] py-[0.15em] font-mono text-[0.875em] text-[#c4554d] dark:bg-[rgba(205,120,110,0.22)] dark:text-[#eb9a92]",
 		italic: "italic",
 	},
 };
@@ -89,7 +91,7 @@ const editorExtension = defineExtension({
 		RichTextExtension,
 		HistoryExtension,
 		ListExtension,
-		CodeExtension,
+		CodePrismExtension,
 		ImageExtension,
 		TabIndentationExtension,
 		ClickAfterLastBlockExtension,
@@ -172,7 +174,12 @@ export function NotionEditor({
 							}}
 						/>
 					) : null}
-					{anchorElem ? <DragPlugin anchorElem={anchorElem} /> : null}
+					{anchorElem ? (
+						<>
+							<DragPlugin anchorElem={anchorElem} />
+							<CodeActionMenuPlugin anchorElem={anchorElem} />
+						</>
+					) : null}
 				</div>
 			</div>
 		</LexicalExtensionComposer>

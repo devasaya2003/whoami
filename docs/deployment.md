@@ -94,9 +94,11 @@ CMS UI route: **`/sign-in` only** (no `/sign-up` page).
 
 ---
 
-## 4. Local env file
+## 4. Local env files
 
-Root [`.env`](../.env) (and/or `apps/blogs/.env`) should include:
+Each app has its own `.env` (see `apps/blogs/.env.example` and `apps/web/.env.example`).
+
+**`apps/blogs/.env`:**
 
 ```bash
 NEXT_PUBLIC_APP_URL=http://localhost:3000
@@ -108,11 +110,16 @@ CLERK_SECRET_KEY=sk_test_...
 NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
 ```
 
-After you create an API key in the CMS dashboard for the portfolio app, add **server-only** (never `NEXT_PUBLIC_*` / `PUBLIC_*`):
+**`apps/web/.env`** (server-only keys — never `NEXT_PUBLIC_*` / `PUBLIC_*`):
 
 ```bash
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXT_PUBLIC_BLOGS_URL=http://localhost:3001
 BLOGS_API_KEY=whami_...your_key...
+BLOGS_APP_ID=...your_app_id...
 ```
+
+Create the API key and copy the app id from the CMS Settings dialog after first sign-in.
 
 Run locally:
 
@@ -162,6 +169,7 @@ Attach a custom domain in the Cloudflare dashboard (Workers → `whoami-blogs` �
 cd apps/web
 
 bunx wrangler secret put BLOGS_API_KEY
+bunx wrangler secret put BLOGS_APP_ID
 bunx wrangler secret put NEXT_PUBLIC_BLOGS_URL   # or PUBLIC_BLOGS_URL
 bunx wrangler secret put NEXT_PUBLIC_APP_URL     # or PUBLIC_APP_URL
 
@@ -172,10 +180,10 @@ Worker name is `whoami-web` ([`apps/web/wrangler.jsonc`](../apps/web/wrangler.js
 
 The Astro app server-fetches:
 
-- `GET {BLOGS_URL}/api/v1/posts`
-- `GET {BLOGS_URL}/api/v1/posts/:slug`
+- `GET {BLOGS_URL}/api/v1/blogs`
+- `GET {BLOGS_URL}/api/v1/blogs/:idOrSlug`
 
-with `Authorization: Bearer <BLOGS_API_KEY>` (and `x-api-key`).
+with headers `x-api-key: <BLOGS_API_KEY>` (also accepts `Authorization: Bearer`) and `app-id: <BLOGS_APP_ID>`.
 
 ---
 
@@ -183,7 +191,7 @@ with `Authorization: Bearer <BLOGS_API_KEY>` (and `x-api-key`).
 
 1. Open `https://blogs.yourdomain.com/sign-in` and sign in (or sign up via the same screen).
 2. Create a **user app** for the portfolio (name + public URL).
-3. Create an **API key** — copy the plaintext once into `BLOGS_API_KEY` for `apps/web`.
+3. Create an **API key** — copy the plaintext once into `BLOGS_API_KEY` for `apps/web`, and set `BLOGS_APP_ID` to that app’s id (shown in Settings → Public API).
 4. Create a blog + version, write in the editor, set status **public** / publish.
 5. Confirm `https://yourdomain.com/blogs` lists the post.
 

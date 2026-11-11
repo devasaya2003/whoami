@@ -19,6 +19,7 @@
 		"@clerk/nextjs": "^6.36.5",
 		"@elysiajs/eden": "^1.4.6",
 		"@lexical/code": "^0.53.0",
+		"@lexical/code-prism": "0.53.0",
 		"@lexical/extension": "^0.53.0",
 		"@lexical/history": "^0.53.0",
 		"@lexical/html": "^0.53.0",
@@ -39,7 +40,8 @@
 		"next": "16.3.8",
 		"prismjs": "^1.30.0",
 		"react": "19.2.8",
-		"react-dom": "19.2.8"
+		"react-dom": "19.2.8",
+		"sonner": "^2.0.8"
 	},
 	"devDependencies": {
 		"@cloudflare/workers-types": "^5.20261110.1",

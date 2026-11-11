@@ -39,6 +39,16 @@ export function getAppUrl(): string {
 export function getBlogsApiKey(): string | undefined {
 	return firstDefined(
 		import.meta.env.BLOGS_API_KEY,
+		import.meta.env.BLOG_API_KEY,
 		typeof process !== "undefined" ? process.env.BLOGS_API_KEY : undefined,
+		typeof process !== "undefined" ? process.env.BLOG_API_KEY : undefined,
+	);
+}
+
+/** Server-only app id for public blog API (`app-id` header). */
+export function getBlogsAppId(): string | undefined {
+	return firstDefined(
+		import.meta.env.BLOGS_APP_ID,
+		typeof process !== "undefined" ? process.env.BLOGS_APP_ID : undefined,
 	);
 }

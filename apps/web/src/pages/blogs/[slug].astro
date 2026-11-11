@@ -23,6 +23,18 @@ const contentHtml = sanitizeContentHtml(post.contentHtml ?? "");
 		<p class="article-meta">{formatPostDate(post.publishedAt)}</p>
 		<h1 class="article-title">{post.title}</h1>
 		{post.description ? <p class="article-desc">{post.description}</p> : null}
-		<div class="prose" set:html={contentHtml} />
+		<div class="published-html" set:html={contentHtml} data-enhance-code />
 	</article>
 </BaseLayout>
+
+<script>
+	import { enhanceCodeBlocks } from "../../lib/enhance-code-blocks";
+
+	function run() {
+		const roots = document.querySelectorAll("[data-enhance-code]");
+		for (const root of roots) enhanceCodeBlocks(root);
+	}
+
+	run();
+	document.addEventListener("astro:page-load", run);
+</script>

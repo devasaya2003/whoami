@@ -1,4 +1,4 @@
-import { getBlogsApiKey, getBlogsUrl } from "./env";
+import { getBlogsApiKey, getBlogsAppId, getBlogsUrl } from "./env";
 
 export type BlogPostListItem = {
 	slug: string;
@@ -11,21 +11,49 @@ export type BlogPost = BlogPostListItem & {
 	contentHtml: string;
 };
 
+type PublicBlogListItem = {
+	id: string;
+	slug: string;
+	title: string;
+	desc: string;
+	version_num: number;
+	version_created_at: string | null;
+	version_updated_at: string | null;
+	published_at: string | null;
+};
+
+type PublicBlog = PublicBlogListItem & {
+	content: string;
+	content_json?: unknown;
+};
+
 function authHeaders(): HeadersInit {
 	const key = getBlogsApiKey();
-	if (!key) return {};
-	return {
-		Authorization: `Bearer ${key}`,
-		"x-api-key": key,
-	};
+	const appId = getBlogsAppId();
+	const headers: Record<string, string> = {};
+	if (key) {
+		headers.Authorization = `Bearer ${key}`;
+		headers["x-api-key"] = key;
+	}
+	if (appId) headers["app-id"] = appId;
+	return headers;
 }
 
 function joinUrl(base: string, path: string): string {
 	return `${base.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
 }
 
+function toListItem(row: PublicBlogListItem): BlogPostListItem {
+	return {
+		slug: row.slug,
+		title: row.title,
+		description: row.desc ?? "",
+		publishedAt: row.published_at ?? "",
+	};
+}
+
 export async function listPosts(): Promise<BlogPostListItem[]> {
-	const url = joinUrl(getBlogsUrl(), "/api/v1/posts");
+	const url = joinUrl(getBlogsUrl(), "/api/v1/blogs");
 	try {
 		const res = await fetch(url, {
 			headers: {
@@ -35,16 +63,8 @@ export async function listPosts(): Promise<BlogPostListItem[]> {
 		});
 		if (!res.ok) return [];
 		const data: unknown = await res.json();
-		if (Array.isArray(data)) return data as BlogPostListItem[];
-		if (
-			data &&
-			typeof data === "object" &&
-			"posts" in data &&
-			Array.isArray((data as { posts: unknown }).posts)
-		) {
-			return (data as { posts: BlogPostListItem[] }).posts;
-		}
-		return [];
+		if (!Array.isArray(data)) return [];
+		return (data as PublicBlogListItem[]).map(toListItem);
 	} catch {
 		return [];
 	}
@@ -53,7 +73,7 @@ export async function listPosts(): Promise<BlogPostListItem[]> {
 export async function getPost(slug: string): Promise<BlogPost | null> {
 	const url = joinUrl(
 		getBlogsUrl(),
-		`/api/v1/posts/${encodeURIComponent(slug)}`,
+		`/api/v1/blogs/${encodeURIComponent(slug)}`,
 	);
 	try {
 		const res = await fetch(url, {
@@ -64,7 +84,11 @@ export async function getPost(slug: string): Promise<BlogPost | null> {
 		});
 		if (res.status === 404) return null;
 		if (!res.ok) return null;
-		return (await res.json()) as BlogPost;
+		const row = (await res.json()) as PublicBlog;
+		return {
+			...toListItem(row),
+			contentHtml: row.content ?? "",
+		};
 	} catch {
 		return null;
 	}

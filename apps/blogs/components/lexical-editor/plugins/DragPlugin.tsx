@@ -247,10 +247,10 @@ export function DragPlugin({anchorElem}: DragPluginProps) {
         menuComponent={
           <div
             ref={menuRef}
-            className={`${DRAG_MENU_CLASSNAME} absolute top-0 left-0 z-[1] flex cursor-grab items-center gap-0.5 rounded-sm p-0.5 opacity-0 [will-change:transform,opacity] active:cursor-grabbing`}
+            className={`${DRAG_MENU_CLASSNAME} absolute top-0 left-0 z-[2] flex cursor-grab items-center gap-0.5 rounded-sm p-0.5 [will-change:transform] active:cursor-grabbing`}
             style={{
-              transition:
-                'transform 140ms ease-in-out, opacity 160ms ease-in-out',
+              display: 'none',
+              transition: 'transform 140ms ease-in-out',
             }}>
             <button
               type="button"
@@ -272,7 +272,8 @@ export function DragPlugin({anchorElem}: DragPluginProps) {
         targetLineComponent={
           <div
             ref={targetLineRef}
-            className="pointer-events-none absolute top-0 left-0 h-[3px] bg-blue-400 opacity-0 [will-change:transform]"
+            className="pointer-events-none absolute top-0 left-0 h-[3px] bg-blue-400 [will-change:transform]"
+            style={{display: 'none', opacity: 0}}
           />
         }
         isOnMenu={isOnMenu}

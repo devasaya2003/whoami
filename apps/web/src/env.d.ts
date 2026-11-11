@@ -7,6 +7,8 @@ interface ImportMetaEnv {
 	readonly NEXT_PUBLIC_APP_URL?: string;
 	readonly NEXT_PUBLIC_BLOGS_URL?: string;
 	readonly BLOGS_API_KEY?: string;
+	readonly BLOG_API_KEY?: string;
+	readonly BLOGS_APP_ID?: string;
 }
 
 interface ImportMeta {

@@ -1,3 +1,5 @@
+/** biome-ignore-all lint/a11y/useKeyWithClickEvents: library code */
+/** biome-ignore-all lint/a11y/noNoninteractiveElementToInteractiveRole: library code */
 "use client";
 
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";

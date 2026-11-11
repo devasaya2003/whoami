@@ -19,10 +19,11 @@ import {
 	TableHeader,
 	TableRow,
 } from "@repo/ui/components/ui/table";
-import { PlusIcon } from "lucide-react";
+import { CopyIcon, PlusIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { api } from "../lib/api";
+import { resolvePersonName } from "../lib/display-name";
 import { CreateApiKeyDialog } from "./create-api-key-dialog";
 
 type ApiKeyRow = {
@@ -32,11 +33,24 @@ type ApiKeyRow = {
 	updatedAt: number;
 };
 
+type AppRow = {
+	id: string;
+	name: string;
+};
+
 type SettingsDialogProps = {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	onDisplayNameChange?: (name: string) => void;
 };
+
+function CodeBlock({ children }: { children: string }) {
+	return (
+		<pre className="overflow-x-auto rounded-lg border border-border bg-muted/40 p-3 font-mono text-[11px] leading-relaxed text-foreground">
+			{children}
+		</pre>
+	);
+}
 
 export function SettingsDialog({
 	open,
@@ -48,9 +62,14 @@ export function SettingsDialog({
 	const [nameDraft, setNameDraft] = useState("");
 	const [savingName, setSavingName] = useState(false);
 	const [keys, setKeys] = useState<ApiKeyRow[]>([]);
+	const [apps, setApps] = useState<AppRow[]>([]);
 	const [loadingKeys, setLoadingKeys] = useState(false);
+	const [loadingApps, setLoadingApps] = useState(false);
 	const [revokingId, setRevokingId] = useState<string | null>(null);
 	const [createOpen, setCreateOpen] = useState(false);
+
+	const host =
+		typeof window !== "undefined" ? window.location.origin : "{host-name}";
 
 	const refreshKeys = useCallback(async () => {
 		setLoadingKeys(true);
@@ -69,31 +88,41 @@ export function SettingsDialog({
 		let cancelled = false;
 
 		async function load() {
+			let dbName: string | null = null;
 			try {
 				const res = await fetch("/api/admin/me");
 				if (res.ok) {
 					const me = (await res.json()) as { name: string | null };
-					const fromDb = me.name?.trim();
-					if (!cancelled && fromDb) {
-						setDisplayName(fromDb);
-						setNameDraft(fromDb);
-						return;
-					}
+					dbName = me.name;
 				}
 			} catch {
-				// fall through
+				// fall through to Clerk name fields only
 			}
 			if (cancelled) return;
-			const fromClerk =
-				user?.fullName?.trim() ||
-				[user?.firstName, user?.lastName].filter(Boolean).join(" ").trim() ||
-				user?.primaryEmailAddress?.emailAddress ||
-				"User";
-			setDisplayName(fromClerk);
-			setNameDraft(fromClerk);
+			const resolved = resolvePersonName({
+				dbName,
+				fullName: user?.fullName,
+				firstName: user?.firstName,
+				lastName: user?.lastName,
+			});
+			setDisplayName(resolved);
+			setNameDraft(resolved);
+		}
+
+		async function loadApps() {
+			setLoadingApps(true);
+			try {
+				const rows = await api<AppRow[]>("/api/admin/apps");
+				if (!cancelled) setApps(rows);
+			} catch {
+				if (!cancelled) setApps([]);
+			} finally {
+				if (!cancelled) setLoadingApps(false);
+			}
 		}
 
 		void load();
+		void loadApps();
 		void refreshKeys();
 		return () => {
 			cancelled = true;
@@ -103,6 +132,10 @@ export function SettingsDialog({
 	async function saveName() {
 		const next = nameDraft.trim();
 		if (!next || next === displayName) return;
+		if (next.includes("@")) {
+			toast.error("Enter a display name, not an email address");
+			return;
+		}
 		setSavingName(true);
 		try {
 			const res = await fetch("/api/admin/me", {
@@ -111,6 +144,7 @@ export function SettingsDialog({
 				body: JSON.stringify({ name: next }),
 			});
 			if (!res.ok) throw new Error(await res.text());
+			// Sync Clerk profile name only — never touch email.
 			const parts = next.split(/\s+/);
 			await user?.update({
 				firstName: parts[0] ?? next,
@@ -139,6 +173,15 @@ export function SettingsDialog({
 		}
 	}
 
+	async function copyAppId(id: string) {
+		try {
+			await navigator.clipboard.writeText(id);
+			toast.success("App id copied");
+		} catch {
+			toast.error("Failed to copy app id");
+		}
+	}
+
 	return (
 		<>
 			<Dialog open={open} onOpenChange={onOpenChange}>
@@ -149,7 +192,8 @@ export function SettingsDialog({
 					<DialogHeader className="border-border border-b px-6 py-5 text-left">
 						<DialogTitle>Settings</DialogTitle>
 						<DialogDescription>
-							Update your display name and manage API keys.
+							Update your display name, manage API keys, and review public API
+							usage.
 						</DialogDescription>
 					</DialogHeader>
 
@@ -174,6 +218,72 @@ export function SettingsDialog({
 								>
 									{savingName ? "Saving…" : "Save"}
 								</Button>
+							</div>
+						</section>
+
+						<section className="space-y-3">
+							<div>
+								<h3 className="font-medium text-sm">Apps</h3>
+								<p className="text-muted-foreground text-xs">
+									Use these app ids in the <code>app-id</code> header.
+								</p>
+							</div>
+
+							<div className="overflow-hidden rounded-xl border border-border">
+								<Table>
+									<TableHeader>
+										<TableRow>
+											<TableHead>Name</TableHead>
+											<TableHead>App id</TableHead>
+											<TableHead className="w-[1%] text-right">
+												Copy
+											</TableHead>
+										</TableRow>
+									</TableHeader>
+									<TableBody>
+										{loadingApps ? (
+											<TableRow>
+												<TableCell
+													className="text-muted-foreground"
+													colSpan={3}
+												>
+													Loading…
+												</TableCell>
+											</TableRow>
+										) : apps.length === 0 ? (
+											<TableRow>
+												<TableCell
+													className="text-muted-foreground"
+													colSpan={3}
+												>
+													No apps yet.
+												</TableCell>
+											</TableRow>
+										) : (
+											apps.map((app) => (
+												<TableRow key={app.id}>
+													<TableCell className="font-medium">
+														{app.name}
+													</TableCell>
+													<TableCell className="font-mono text-muted-foreground text-xs">
+														{app.id}
+													</TableCell>
+													<TableCell className="text-right">
+														<Button
+															aria-label={`Copy app id for ${app.name}`}
+															onClick={() => void copyAppId(app.id)}
+															size="icon-sm"
+															type="button"
+															variant="ghost"
+														>
+															<CopyIcon />
+														</Button>
+													</TableCell>
+												</TableRow>
+											))
+										)}
+									</TableBody>
+								</Table>
 							</div>
 						</section>
 
@@ -252,6 +362,117 @@ export function SettingsDialog({
 										)}
 									</TableBody>
 								</Table>
+							</div>
+						</section>
+
+						<section className="space-y-4">
+							<div>
+								<h3 className="font-medium text-sm">Public API</h3>
+								<p className="text-muted-foreground text-xs">
+									Authenticate with headers on every request. Only published
+									blogs (latest version) are returned.
+								</p>
+							</div>
+
+							<div className="space-y-2">
+								<p className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+									Headers
+								</p>
+								<CodeBlock>{`x-api-key: YOUR-API-KEY
+app-id: YOUR-APP-ID`}</CodeBlock>
+							</div>
+
+							<div className="space-y-2">
+								<p className="font-medium text-sm">
+									GET {host}/api/v1/blogs
+								</p>
+								<p className="text-muted-foreground text-xs">
+									Lists published blogs (latest versions only).
+								</p>
+								<CodeBlock>{`[
+  {
+    "id": "...",
+    "slug": "...",
+    "title": "...",
+    "desc": "...",
+    "version_num": 1,
+    "version_created_at": "...",
+    "version_updated_at": "...",
+    "published_at": "..."
+  }
+]`}</CodeBlock>
+							</div>
+
+							<div className="space-y-2">
+								<p className="font-medium text-sm">
+									GET {host}/api/v1/blogs/{"{blog-id-or-slug}"}
+								</p>
+								<p className="text-muted-foreground text-xs">
+									Returns HTML + Lexical JSON for a published blog. Unpublished
+									blogs respond with 404.
+								</p>
+								<CodeBlock>{`{
+  "id": "...",
+  "slug": "...",
+  "title": "...",
+  "desc": "...",
+  "content": "<p>...</p>",
+  "content_json": { "root": { "...": "Lexical editor state" } },
+  "version_num": 1,
+  "version_created_at": "...",
+  "version_updated_at": "...",
+  "published_at": "..."
+}`}</CodeBlock>
+							</div>
+
+							<div className="space-y-2">
+								<p className="font-medium text-sm">Rendering</p>
+								<p className="text-muted-foreground text-xs">
+									Use <code>content</code> for static sites (recommended). Use{" "}
+									<code>content_json</code> when you want a Lexical (or custom)
+									client renderer.
+								</p>
+								<ul className="list-disc space-y-1.5 pl-4 text-muted-foreground text-xs">
+									<li>
+										<strong className="text-foreground">HTML:</strong> inject{" "}
+										<code>content</code> into a container with class{" "}
+										<code>published-html</code>. Match CMS typography: ~1rem /
+										1.65 line-height, bold h1 1.75rem, semibold h2 1.3rem, h3
+										1.1rem, disc/decimal lists with pl-5, blockquotes with a 3px
+										left border, mono inline code + pre blocks, images max-width
+										100% / max-height 480px / rounded.
+									</li>
+									<li>
+										<strong className="text-foreground">Sanitize:</strong> treat{" "}
+										<code>content</code> as untrusted at the edge and sanitize
+										before <code>dangerouslySetInnerHTML</code> /{" "}
+										<code>set:html</code>.
+									</li>
+									<li>
+										<strong className="text-foreground">Lexical JSON:</strong>{" "}
+										<code>content_json</code> is a Lexical{" "}
+										<code>SerializedEditorState</code>. Example:{" "}
+										<code>
+											{`editor.setEditorState(editor.parseEditorState(content_json))`}
+										</code>{" "}
+										in a read-only composer (same nodes as the CMS: rich text,
+										lists, code, images).
+									</li>
+									<li>
+										<strong className="text-foreground">Media:</strong> image{" "}
+										<code>src</code> values may be absolute CDN URLs or{" "}
+										<code>/api/media/…</code> paths on this host — resolve
+										relative URLs against {host}.
+									</li>
+								</ul>
+								<CodeBlock>{`<!-- HTML (static) -->
+<article class="published-html">
+  <!-- sanitized content HTML here -->
+</article>
+
+/* Lexical (client) */
+editor.setEditable(false);
+editor.setEditorState(editor.parseEditorState(content_json));`}</CodeBlock>
 							</div>
 						</section>
 					</div>

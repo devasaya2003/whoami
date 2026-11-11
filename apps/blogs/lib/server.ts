@@ -7,7 +7,15 @@ import {
 	userApps,
 	users,
 } from "@repo/db";
-import { publicObjectUrl, putObject, uploadKey } from "@repo/storage";
+import {
+	deleteObject,
+	mediaProxyPath,
+	publicObjectUrl,
+	putObject,
+	resolveUploadKey,
+	uploadKey,
+	userUploadPrefix,
+} from "@repo/storage";
 import { and, desc, eq, max, ne, or } from "drizzle-orm";
 import { Elysia, t } from "elysia";
 import { HttpError, requireClerkUser, resolveUserFromApiKey } from "./auth";
@@ -29,9 +37,57 @@ function assertHttpUrl(value: string) {
 }
 
 
+
+function blogsOrigin() {
+	return (process.env.NEXT_PUBLIC_BLOGS_URL || "").replace(/\/$/, "");
+}
+
+/** S3 API hosts are not publicly readable; require media proxy instead. */
+function usablePublicBase(publicBase: string): string {
+	const base = publicBase.trim();
+	if (!base) return "";
+	try {
+		const host = new URL(base).hostname;
+		if (host.endsWith(".r2.cloudflarestorage.com")) return "";
+		return base.replace(/\/$/, "");
+	} catch {
+		return "";
+	}
+}
+
+function publicOrProxyUrl(publicBase: string, key: string) {
+	const usable = usablePublicBase(publicBase);
+	if (usable) return publicObjectUrl(usable, key);
+	const origin = blogsOrigin();
+	const path = mediaProxyPath(key);
+	return origin ? `${origin}${path}` : path;
+}
+
 function toIso(ms: number | null | undefined): string {
 	if (!ms) return "";
 	return new Date(ms).toISOString();
+}
+
+/** Lexical editor state from stored `docSnapshot` (`{ format, json }`). */
+function toContentJson(docSnapshot: string | null | undefined): unknown {
+	if (!docSnapshot?.trim()) return null;
+	try {
+		const parsed = JSON.parse(docSnapshot) as {
+			format?: string;
+			json?: unknown;
+		};
+		if (
+			parsed &&
+			typeof parsed === "object" &&
+			parsed.format === "lexical-json-v1" &&
+			parsed.json !== undefined
+		) {
+			return parsed.json;
+		}
+		return parsed;
+	} catch {
+		return null;
+	}
 }
 
 function errorResponse(error: unknown) {
@@ -100,33 +156,30 @@ export const app = new Elysia({ name: "blogs-api" })
 		set.status = 500;
 		return { error: "Internal Server Error" };
 	})
-	.get(
-		"/api/v1/posts",
-		async ({ request, query }) => {
+	.get("/api/v1/blogs", async ({ request }) => {
 		const db = await getDb();
 		const user = await resolveUserFromApiKey(db, request);
 		if (!user) throw new HttpError(401, { error: "Invalid API key" });
 
-		const appFilter = query.app?.trim();
+		const appId = request.headers.get("app-id")?.trim();
+		if (!appId) throw new HttpError(400, { error: "Missing app-id header" });
+
 		const conditions = [
 			eq(userApps.userId, user.id),
+			eq(userApps.id, appId),
 			eq(blogVersions.status, "public"),
 		];
 
-		if (appFilter) {
-			conditions.push(
-				or(eq(userApps.id, appFilter), eq(userApps.name, appFilter))!,
-			);
-		}
-
 		const rows = await db
 			.select({
+				id: blogs.id,
 				slug: blogs.slug,
 				title: blogVersions.title,
-				description: blogVersions.description,
+				desc: blogVersions.description,
+				versionNum: blogVersions.version,
+				versionCreatedAt: blogVersions.createdAt,
+				versionUpdatedAt: blogVersions.updatedAt,
 				publishedAt: blogVersions.publishedAt,
-				version: blogVersions.version,
-				blogId: blogs.id,
 			})
 			.from(blogVersions)
 			.innerJoin(blogs, eq(blogVersions.blogId, blogs.id))
@@ -134,55 +187,54 @@ export const app = new Elysia({ name: "blogs-api" })
 			.where(and(...conditions))
 			.orderBy(desc(blogVersions.publishedAt), desc(blogVersions.version));
 
-		// latest public version per blog
+		// latest published version per blog
 		const latest = new Map<string, (typeof rows)[number]>();
 		for (const row of rows) {
-			const prev = latest.get(row.blogId);
-			if (!prev || row.version > prev.version) {
-				latest.set(row.blogId, row);
+			const prev = latest.get(row.id);
+			if (!prev || row.versionNum > prev.versionNum) {
+				latest.set(row.id, row);
 			}
 		}
 
 		return [...latest.values()].map((row) => ({
+			id: row.id,
 			slug: row.slug,
 			title: row.title,
-			description: row.description,
-			publishedAt: toIso(row.publishedAt),
+			desc: row.desc,
+			version_num: row.versionNum,
+			version_created_at: toIso(row.versionCreatedAt),
+			version_updated_at: toIso(row.versionUpdatedAt),
+			published_at: toIso(row.publishedAt),
 		}));
-		},
-		{
-			query: t.Object({
-				app: t.Optional(t.String()),
-			}),
-		},
-	)
-	.get(
-		"/api/v1/posts/:slug",
-		async ({ request, query, params }) => {
+	})
+	.get("/api/v1/blogs/:idOrSlug", async ({ request, params }) => {
 		const db = await getDb();
 		const user = await resolveUserFromApiKey(db, request);
 		if (!user) throw new HttpError(401, { error: "Invalid API key" });
 
-		const appFilter = query.app?.trim();
+		const appId = request.headers.get("app-id")?.trim();
+		if (!appId) throw new HttpError(400, { error: "Missing app-id header" });
+
+		const idOrSlug = params.idOrSlug.trim();
 		const conditions = [
 			eq(userApps.userId, user.id),
-			eq(blogs.slug, params.slug),
+			eq(userApps.id, appId),
 			eq(blogVersions.status, "public"),
+			or(eq(blogs.id, idOrSlug), eq(blogs.slug, idOrSlug))!,
 		];
-		if (appFilter) {
-			conditions.push(
-				or(eq(userApps.id, appFilter), eq(userApps.name, appFilter))!,
-			);
-		}
 
 		const rows = await db
 			.select({
+				id: blogs.id,
 				slug: blogs.slug,
 				title: blogVersions.title,
-				description: blogVersions.description,
+				desc: blogVersions.description,
+				content: blogVersions.contentHtml,
+				docSnapshot: blogVersions.docSnapshot,
+				versionNum: blogVersions.version,
+				versionCreatedAt: blogVersions.createdAt,
+				versionUpdatedAt: blogVersions.updatedAt,
 				publishedAt: blogVersions.publishedAt,
-				contentHtml: blogVersions.contentHtml,
-				version: blogVersions.version,
 			})
 			.from(blogVersions)
 			.innerJoin(blogs, eq(blogVersions.blogId, blogs.id))
@@ -195,19 +247,18 @@ export const app = new Elysia({ name: "blogs-api" })
 		if (!row) throw new HttpError(404, { error: "Not found" });
 
 		return {
+			id: row.id,
 			slug: row.slug,
 			title: row.title,
-			description: row.description,
-			publishedAt: toIso(row.publishedAt),
-			contentHtml: row.contentHtml,
+			desc: row.desc,
+			content: row.content,
+			content_json: toContentJson(row.docSnapshot),
+			version_num: row.versionNum,
+			version_created_at: toIso(row.versionCreatedAt),
+			version_updated_at: toIso(row.versionUpdatedAt),
+			published_at: toIso(row.publishedAt),
 		};
-		},
-		{
-			query: t.Object({
-				app: t.Optional(t.String()),
-			}),
-		},
-	)
+	})
 	// --- Admin: current user ---
 	.get("/api/admin/me", async () => {
 		const db = await getDb();
@@ -686,28 +737,95 @@ export const app = new Elysia({ name: "blogs-api" })
 			updatedAt: ts,
 		};
 	})
+	.get("/api/media/*", async ({ params }) => {
+		try {
+			const key = decodeURIComponent(String(params["*"] ?? "")).replace(/^\/+/, "");
+			if (!key.startsWith("uploads/")) {
+				throw new HttpError(400, { error: "Invalid media key" });
+			}
+			const r2 = await getR2();
+			const object = await r2.get(key);
+			if (!object) {
+				throw new HttpError(404, { error: "Not found" });
+			}
+			const headers = new Headers();
+			headers.set(
+				"content-type",
+				object.httpMetadata?.contentType || "application/octet-stream",
+			);
+			headers.set("cache-control", "public, max-age=31536000, immutable");
+			if (object.httpEtag) headers.set("etag", object.httpEtag);
+			return new Response(object.body, { headers });
+		} catch (error) {
+			if (error instanceof HttpError) throw error;
+			console.error("[media] GET failed", error);
+			const message =
+				error instanceof Error ? error.message : "Failed to load media";
+			throw new HttpError(500, { error: message });
+		}
+	})
 	.post("/api/admin/uploads", async ({ request }) => {
-		const db = await getDb();
-		const user = await requireClerkUser(db);
-		const form = await request.formData();
-		const file = form.get("file");
-		if (!(file instanceof File)) {
-			throw new HttpError(400, { error: "file is required" });
-		}
+		try {
+			const db = await getDb();
+			const user = await requireClerkUser(db);
+			const form = await request.formData();
+			const file = form.get("file");
+			if (!(file instanceof File)) {
+				throw new HttpError(400, { error: "file is required" });
+			}
+			if (!file.type.startsWith("image/") && file.type !== "") {
+				throw new HttpError(400, { error: "Only image uploads are supported" });
+			}
 
-		const r2 = await getR2();
-		const publicBase = await getR2PublicUrl();
-		if (!publicBase) {
-			throw new HttpError(500, { error: "R2_PUBLIC_URL is not configured" });
-		}
+			const r2 = await getR2();
+			const publicBase = await getR2PublicUrl();
+			const key = uploadKey(user.id, file.name || "upload.bin");
+			const buffer = await file.arrayBuffer();
+			await putObject(r2, key, buffer, file.type || "application/octet-stream");
 
-		const key = uploadKey(user.id, file.name || "upload.bin");
-		const buffer = await file.arrayBuffer();
-		await putObject(r2, key, buffer, file.type || undefined);
-		return {
-			key,
-			url: publicObjectUrl(publicBase, key),
-		};
+			return {
+				key,
+				url: publicOrProxyUrl(publicBase, key),
+			};
+		} catch (error) {
+			if (error instanceof HttpError) throw error;
+			console.error("[uploads] POST failed", error);
+			const message =
+				error instanceof Error ? error.message : "Upload failed";
+			throw new HttpError(500, { error: message });
+		}
+	})
+	.delete("/api/admin/uploads", async ({ request }) => {
+		try {
+			const db = await getDb();
+			const user = await requireClerkUser(db);
+			const body = (await request.json()) as { url?: string; key?: string };
+			const r2 = await getR2();
+			const publicBase = await getR2PublicUrl();
+
+			const raw =
+				(typeof body.key === "string" && body.key.trim()) ||
+				(typeof body.url === "string" && body.url.trim()) ||
+				"";
+			const key = resolveUploadKey(raw, publicBase || undefined) ?? "";
+			if (!key) {
+				throw new HttpError(400, { error: "url or key is required" });
+			}
+
+			const prefix = userUploadPrefix(user.id);
+			if (!key.startsWith(prefix)) {
+				throw new HttpError(403, { error: "Not allowed to delete this object" });
+			}
+
+			await deleteObject(r2, key);
+			return { ok: true as const, key };
+		} catch (error) {
+			if (error instanceof HttpError) throw error;
+			console.error("[uploads] DELETE failed", error);
+			const message =
+				error instanceof Error ? error.message : "Delete failed";
+			throw new HttpError(500, { error: message });
+		}
 	});
 
 export type App = typeof app;
