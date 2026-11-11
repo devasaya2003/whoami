@@ -75,8 +75,22 @@ export function BlogEditor({ blogId }: { blogId: string }) {
 	const [ready, setReady] = useState(false);
 	const [statusBusy, setStatusBusy] = useState(false);
 	const [settingsOpen, setSettingsOpen] = useState(false);
+	const [editorEpoch, setEditorEpoch] = useState(0);
+	const descriptionRef = useRef<HTMLTextAreaElement | null>(null);
 
 	const isPublic = status === "public";
+
+	const resizeDescription = useCallback(() => {
+		if (isPublic) return;
+		const el = descriptionRef.current;
+		if (!el) return;
+		el.style.height = "auto";
+		el.style.height = `${description ? el.scrollHeight : 0}px`;
+	}, [description, isPublic]);
+
+	useEffect(() => {
+		resizeDescription();
+	}, [resizeDescription]);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -247,11 +261,27 @@ export function BlogEditor({ blogId }: { blogId: string }) {
 				}),
 			);
 
-			setStatus("draft");
-			latest.current = { ...latest.current, status: "draft" };
-			setReady(false);
+			// Reload saved snapshot — remounting the editor with the stale
+			// initialState from first page load would wipe post-load edits.
+			const blog = await okJson<BlogPayload>(
+				await blogsApi.api.admin.blogs[":blogId"].$get({
+					param: { blogId },
+				}),
+			);
 			skipAutosave.current = true;
 			editorRef.current = null;
+			setReady(false);
+			setTitle(blog.title);
+			setDescription(blog.description);
+			setContentHtml(blog.contentHtml || "");
+			latest.current = {
+				title: blog.title,
+				description: blog.description,
+				status: "draft",
+			};
+			setInitialState(parseInitialState(blog));
+			setEditorEpoch((n) => n + 1);
+			setStatus("draft");
 			toast.success("Unpublished — you can edit again");
 		} catch (err) {
 			console.error(err);
@@ -370,7 +400,7 @@ export function BlogEditor({ blogId }: { blogId: string }) {
 								{title.trim() || "Untitled"}
 							</h1>
 							{description.trim() ? (
-								<p className="mb-8 text-lg text-muted-foreground">
+								<p className="mb-8 whitespace-pre-wrap text-lg text-muted-foreground">
 									{description}
 								</p>
 							) : (
@@ -395,17 +425,19 @@ export function BlogEditor({ blogId }: { blogId: string }) {
 									placeholder="Untitled"
 									value={title}
 								/>
-								<input
+								<textarea
 									aria-label="Description"
-									className="mb-6 w-full border-0 bg-transparent text-lg text-muted-foreground outline-none placeholder:text-muted-foreground/40"
+									className="mb-6 field-sizing-content min-h-[1.75rem] w-full resize-none overflow-hidden border-0 bg-transparent text-lg text-muted-foreground outline-none placeholder:text-muted-foreground/40"
 									onChange={(e) => onDescriptionChange(e.target.value)}
 									placeholder="Add a description…"
+									ref={descriptionRef}
+									rows={1}
 									value={description}
 								/>
 							</div>
 							<NotionEditor
 								initialState={initialState}
-								key={`${blogId}-draft`}
+								key={`${blogId}-draft-${editorEpoch}`}
 								onChange={onEditorChange}
 								onReady={onReady}
 							/>
