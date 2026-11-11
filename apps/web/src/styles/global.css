@@ -12,7 +12,7 @@
 	--font-mono:
 		ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
 		"Courier New", monospace;
-	--measure: 68ch;
+	--measure: 48rem; /* matches blogs CMS max-w-3xl */
 	--pad: clamp(1.25rem, 4vw, 2rem);
 	--header-gap: 1.25rem;
 }
