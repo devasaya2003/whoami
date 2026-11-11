@@ -15,214 +15,86 @@ type VersionPayload = {
 	contentHtml: string;
 };
 
-type StoreLike = {
-	root: unknown;
-	provider: unknown;
-	addBlock: (flavour: string, props?: Record<string, unknown>, parent?: string) => string;
-	getAllModels: () => Array<{ text?: { toString?: () => string } }>;
-	getTransformer: () => {
-		docToSnapshot: (store: StoreLike) => unknown;
-		snapshotToDoc: (snapshot: unknown) => Promise<unknown>;
-	};
-};
-
-async function loadBlocksuite() {
-	// Non-literal import specifiers keep tsc from following BlockSuite source exports.
-	const effectsPath = "@blocksuite/affine/effects";
-	const storeExtPath = "@blocksuite/affine/extensions/store";
-	const viewExtPath = "@blocksuite/affine/extensions/view";
-	const extLoaderPath = "@blocksuite/affine/ext-loader";
-	const testPath = "@blocksuite/affine/store/test";
-	const stdPath = "@blocksuite/affine/std";
-	const storePath = "@blocksuite/affine/store";
-	const adaptersPath = "@blocksuite/affine/shared/adapters";
-
-	await import(effectsPath);
-	const { getInternalStoreExtensions } = await import(storeExtPath);
-	const { getInternalViewExtensions } = await import(viewExtPath);
-	const { StoreExtensionManager, ViewExtensionManager } = await import(extLoaderPath);
-	const { TestWorkspace } = await import(testPath);
-	const { BlockStdScope } = await import(stdPath);
-	const { Text } = await import(storePath);
-	const { HtmlAdapter } = await import(adaptersPath);
-
-	return {
-		getInternalStoreExtensions,
-		getInternalViewExtensions,
-		StoreExtensionManager,
-		ViewExtensionManager,
-		TestWorkspace,
-		BlockStdScope,
-		Text,
-		HtmlAdapter,
-	};
-}
-
-function initEmptyDoc(store: StoreLike, Text: new () => unknown) {
-	const pageId = store.addBlock("affine:page", { title: new Text() });
-	store.addBlock("affine:surface", {}, pageId);
-	const noteId = store.addBlock("affine:note", {}, pageId);
-	store.addBlock("affine:paragraph", {}, noteId);
-}
-
-async function snapshotToHtml(
-	store: StoreLike,
-	HtmlAdapter: new (job: unknown, provider: unknown) => {
-		fromDocSnapshot: (payload: { snapshot: unknown }) => Promise<{ file?: string }>;
-	},
-	host?: HTMLElement | null,
-) {
-	try {
-		const transformer = store.getTransformer();
-		const snapshot = transformer.docToSnapshot(store);
-		if (!snapshot) throw new Error("empty snapshot");
-		const adapter = new HtmlAdapter(transformer, store.provider);
-		const result = await adapter.fromDocSnapshot({ snapshot });
-		if (result.file) return result.file;
-	} catch {
-		// fall through
-	}
-
-	if (host?.innerHTML) return host.innerHTML;
-
-	const texts: string[] = [];
-	for (const block of store.getAllModels()) {
-		const text = block.text?.toString?.();
-		if (text) texts.push(`<p>${text}</p>`);
-	}
-	return texts.join("\n") || "<p></p>";
-}
-
+/**
+ * CMS editor for a blog version.
+ *
+ * BlockSuite 0.22 ships package exports that point at raw `.ts` sources, which
+ * Next/Turbopack cannot load ("Unknown module type"). Until those packages
+ * publish browser-ready ESM (or we run a custom webpack transpile of ~70
+ * @blocksuite packages), we use a contenteditable surface and persist
+ * `contentHtml` + a lightweight `docSnapshot` JSON envelope.
+ */
 export function BlockSuiteEditor({ versionId }: { versionId: string }) {
-	const hostRef = useRef<HTMLDivElement>(null);
-	const storeRef = useRef<StoreLike | null>(null);
-	const editorHostRef = useRef<HTMLElement | null>(null);
-	const fallbackRef = useRef<HTMLDivElement>(null);
-	const htmlAdapterRef = useRef<
-		| (new (job: unknown, provider: unknown) => {
-				fromDocSnapshot: (payload: { snapshot: unknown }) => Promise<{ file?: string }>;
-		  })
-		| null
-	>(null);
-	const unmountRef = useRef<(() => void) | null>(null);
+	const editorRef = useRef<HTMLDivElement>(null);
 
 	const [title, setTitle] = useState("");
 	const [description, setDescription] = useState("");
 	const [status, setStatus] = useState<"draft" | "public">("draft");
-	const [htmlFallback, setHtmlFallback] = useState("");
-	const [mode, setMode] = useState<"loading" | "blocksuite" | "fallback">("loading");
+	const [initialHtml, setInitialHtml] = useState("");
+	const [ready, setReady] = useState(false);
 	const [message, setMessage] = useState<string | null>(null);
 	const [saving, setSaving] = useState(false);
 	const [uploadUrl, setUploadUrl] = useState<string | null>(null);
 
 	useEffect(() => {
-		let disposed = false;
+		let cancelled = false;
 
-		async function boot() {
+		async function load() {
 			const res = await fetch(`/api/admin/versions/${versionId}`);
 			if (!res.ok) throw new Error("Failed to load version");
 			const version = (await res.json()) as VersionPayload;
-			if (disposed) return;
+			if (cancelled) return;
 
 			setTitle(version.title);
 			setDescription(version.description);
 			setStatus(version.status);
-			setHtmlFallback(version.contentHtml || "");
 
-			try {
-				const bs = await loadBlocksuite();
-				htmlAdapterRef.current = bs.HtmlAdapter;
-
-				const storeManager = new bs.StoreExtensionManager(
-					bs.getInternalStoreExtensions(),
-				);
-				const viewManager = new bs.ViewExtensionManager(
-					bs.getInternalViewExtensions(),
-				);
-				const collection = new bs.TestWorkspace({ id: "blogs-cms" });
-				collection.storeExtensions = storeManager.get("store");
-				collection.meta.initialize();
-
-				const doc = collection.createDoc(versionId);
-				const store = doc.getStore({
-					extensions: storeManager.get("store"),
-				}) as StoreLike;
-				storeRef.current = store;
-
-				doc.load();
-
-				const raw = version.docSnapshot?.trim();
-				if (raw && raw !== "{}" && raw !== "") {
-					const snapshot = JSON.parse(raw) as unknown;
-					await store.getTransformer().snapshotToDoc(snapshot);
+			let html = version.contentHtml || "";
+			if (!html && version.docSnapshot) {
+				try {
+					const snap = JSON.parse(version.docSnapshot) as {
+						html?: string;
+						contentHtml?: string;
+					};
+					html = snap.html ?? snap.contentHtml ?? "";
+				} catch {
+					// ignore invalid snapshot
 				}
-
-				if (!store.root) {
-					initEmptyDoc(store, bs.Text);
-				}
-
-				const std = new bs.BlockStdScope({
-					store,
-					extensions: viewManager.get("page"),
-				});
-				const host = std.render() as HTMLElement;
-				editorHostRef.current = host;
-				unmountRef.current = () => std.unmount();
-
-				if (hostRef.current) {
-					hostRef.current.replaceChildren(host);
-				}
-				if (!disposed) setMode("blocksuite");
-			} catch (err) {
-				console.warn("BlockSuite host unavailable, using fallback editor", err);
-				if (!disposed) setMode("fallback");
 			}
+			setInitialHtml(html || "<p></p>");
+			setReady(true);
 		}
 
-		boot().catch((err: unknown) => {
+		load().catch((err: unknown) => {
 			console.error(err);
-			if (!disposed) {
-				setMode("fallback");
-				setMessage(err instanceof Error ? err.message : "Editor failed to load");
+			if (!cancelled) {
+				setMessage(err instanceof Error ? err.message : "Failed to load");
+				setInitialHtml("<p></p>");
+				setReady(true);
 			}
 		});
 
 		return () => {
-			disposed = true;
-			unmountRef.current?.();
-			unmountRef.current = null;
-			editorHostRef.current = null;
-			storeRef.current = null;
+			cancelled = true;
 		};
 	}, [versionId]);
 
 	useEffect(() => {
-		if (mode !== "fallback" || !fallbackRef.current) return;
-		if (!fallbackRef.current.innerHTML.trim()) {
-			fallbackRef.current.innerHTML = htmlFallback || "<p></p>";
+		if (!ready || !editorRef.current) return;
+		if (!editorRef.current.innerHTML.trim()) {
+			editorRef.current.innerHTML = initialHtml || "<p></p>";
 		}
-	}, [mode, htmlFallback]);
+	}, [ready, initialHtml]);
 
 	async function save() {
 		setSaving(true);
 		setMessage(null);
 		try {
-			let docSnapshot = "{}";
-			let contentHtml = htmlFallback;
-
-			const store = storeRef.current;
-			if (store && mode === "blocksuite" && htmlAdapterRef.current) {
-				const snapshot = store.getTransformer().docToSnapshot(store);
-				docSnapshot = JSON.stringify(snapshot ?? {});
-				contentHtml = await snapshotToHtml(
-					store,
-					htmlAdapterRef.current,
-					editorHostRef.current ?? hostRef.current,
-				);
-			} else if (fallbackRef.current) {
-				contentHtml = fallbackRef.current.innerHTML;
-				docSnapshot = JSON.stringify({ contentHtml });
-			}
+			const contentHtml = editorRef.current?.innerHTML ?? "";
+			const docSnapshot = JSON.stringify({
+				format: "html",
+				html: contentHtml,
+			});
 
 			const res = await fetch(`/api/admin/versions/${versionId}`, {
 				method: "PATCH",
@@ -258,14 +130,14 @@ export function BlockSuiteEditor({ versionId }: { versionId: string }) {
 			const data = (await res.json()) as { url: string };
 			setUploadUrl(data.url);
 			await navigator.clipboard?.writeText(data.url);
-			setMessage("Uploaded — URL copied to clipboard");
 
-			if (mode === "fallback" && fallbackRef.current) {
+			if (editorRef.current) {
 				const img = document.createElement("img");
 				img.src = data.url;
 				img.alt = file.name;
-				fallbackRef.current.appendChild(img);
+				editorRef.current.appendChild(img);
 			}
+			setMessage("Uploaded — image inserted and URL copied");
 		} catch (err) {
 			setMessage(err instanceof Error ? err.message : "Upload failed");
 		}
@@ -278,7 +150,7 @@ export function BlockSuiteEditor({ versionId }: { versionId: string }) {
 					<h1 className="text-2xl font-semibold tracking-tight">Editor</h1>
 					<p className="text-muted-foreground text-sm">Version {versionId}</p>
 				</div>
-				<Button disabled={saving} onClick={() => void save()} type="button">
+				<Button disabled={saving || !ready} onClick={() => void save()} type="button">
 					{saving ? "Saving…" : "Save"}
 				</Button>
 			</div>
@@ -328,30 +200,22 @@ export function BlockSuiteEditor({ versionId }: { versionId: string }) {
 					type="file"
 				/>
 				{uploadUrl ? (
-					<code className="break-all text-xs text-muted-foreground">{uploadUrl}</code>
+					<code className="break-all text-muted-foreground text-xs">{uploadUrl}</code>
 				) : null}
 			</div>
 
-			{message ? <p className="text-sm text-muted-foreground">{message}</p> : null}
+			{message ? <p className="text-muted-foreground text-sm">{message}</p> : null}
 
-			{mode === "loading" ? (
+			{!ready ? (
 				<p className="text-muted-foreground text-sm">Loading editor…</p>
-			) : null}
-
-			<div
-				className="min-h-[420px] rounded-lg border border-border bg-background p-3"
-				ref={hostRef}
-				style={{ display: mode === "blocksuite" ? "block" : "none" }}
-			/>
-
-			{mode === "fallback" ? (
+			) : (
 				<div
-					className="prose min-h-[420px] max-w-none rounded-lg border border-border p-4 outline-none dark:prose-invert"
+					className="prose min-h-[420px] max-w-none rounded-lg border border-border bg-background p-4 outline-none dark:prose-invert"
 					contentEditable
-					ref={fallbackRef}
+					ref={editorRef}
 					suppressContentEditableWarning
 				/>
-			) : null}
+			)}
 		</div>
 	);
 }

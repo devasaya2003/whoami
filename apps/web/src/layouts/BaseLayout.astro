@@ -1,5 +1,6 @@
 ---
 import Header from "../components/Header.astro";
+import { site } from "../config/site";
 import "../styles/global.css";
 
 interface Props {
@@ -9,12 +10,14 @@ interface Props {
 }
 
 const {
-	title = "whoami",
-	description = "A portfolio of tiny apps and blogs.",
+	title = site.title,
+	description = site.description,
 	current,
 } = Astro.props;
 
-const pageTitle = title === "whoami" ? title : `${title} · whoami`;
+const pageTitle =
+	title === site.name || title === site.title ? title : `${title} · ${site.name}`;
+const storageKey = site.themeStorageKey;
 ---
 
 <!doctype html>
@@ -32,9 +35,9 @@ const pageTitle = title === "whoami" ? title : `${title} · whoami`;
 			rel="stylesheet"
 		/>
 		<title>{pageTitle}</title>
-		<script is:inline>
+		<script is:inline define:vars={{ storageKey }}>
 			(() => {
-				const stored = localStorage.getItem("whoami-theme");
+				const stored = localStorage.getItem(storageKey);
 				const prefersDark = window.matchMedia(
 					"(prefers-color-scheme: dark)",
 				).matches;
@@ -52,7 +55,9 @@ const pageTitle = title === "whoami" ? title : `${title} · whoami`;
 		<div class="site-shell">
 			<Header current={current} />
 			<slot />
-			<footer class="site-footer">&copy; {new Date().getFullYear()} whoami</footer>
+			<footer class="site-footer"
+				>&copy; {new Date().getFullYear()} {site.name}</footer
+			>
 		</div>
 	</body>
 </html>

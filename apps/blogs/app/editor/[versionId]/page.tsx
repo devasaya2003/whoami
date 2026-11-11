@@ -1,19 +1,4 @@
-import dynamic from "next/dynamic";
-
-const BlockSuiteEditor = dynamic(
-	() =>
-		import("../../../components/blocksuite-editor").then(
-			(mod) => mod.BlockSuiteEditor,
-		),
-	{
-		ssr: false,
-		loading: () => (
-			<main className="mx-auto max-w-3xl px-6 py-10 text-muted-foreground text-sm">
-				Loading editor…
-			</main>
-		),
-	},
-);
+import { BlockSuiteEditor } from "../../../components/blocksuite-editor";
 
 export default async function EditorPage({
 	params,

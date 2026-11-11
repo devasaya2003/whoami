@@ -5,6 +5,7 @@ import {
 	now,
 	userApis,
 	userApps,
+	users,
 } from "@repo/db";
 import { publicObjectUrl, putObject, uploadKey } from "@repo/storage";
 import { and, desc, eq, max, ne, or } from "drizzle-orm";
@@ -12,6 +13,21 @@ import { Elysia, t } from "elysia";
 import { HttpError, requireClerkUser, resolveUserFromApiKey } from "./auth";
 import { getDb, getR2, getR2PublicUrl } from "./cf";
 import { generateApiKey, sha256Hex } from "./hash";
+import { makeBlogSlug } from "./slug";
+
+function assertHttpUrl(value: string) {
+	let url: URL;
+	try {
+		url = new URL(value);
+	} catch {
+		throw new HttpError(400, { error: "Invalid URL" });
+	}
+	if (url.protocol !== "http:" && url.protocol !== "https:") {
+		throw new HttpError(400, { error: "URL must use http or https" });
+	}
+	return url.toString();
+}
+
 
 function toIso(ms: number | null | undefined): string {
 	if (!ms) return "";
@@ -192,6 +208,90 @@ export const app = new Elysia({ name: "blogs-api" })
 			}),
 		},
 	)
+	// --- Admin: current user ---
+	.get("/api/admin/me", async () => {
+		const db = await getDb();
+		const user = await requireClerkUser(db);
+		return {
+			id: user.id,
+			email: user.email,
+			name: user.name,
+		};
+	})
+	.patch(
+		"/api/admin/me",
+		async ({ body }) => {
+			const db = await getDb();
+			const user = await requireClerkUser(db);
+			const name = body.name.trim();
+			const ts = now();
+			await db
+				.update(users)
+				.set({ name, updatedAt: ts })
+				.where(eq(users.id, user.id));
+			return { id: user.id, email: user.email, name };
+		},
+		{
+			body: t.Object({
+				name: t.String({ minLength: 1, maxLength: 120 }),
+			}),
+		},
+	)
+	// --- Admin: all blogs for signed-in user ---
+	.get("/api/admin/blogs", async () => {
+		const db = await getDb();
+		const user = await requireClerkUser(db);
+		const rows = await db
+			.select({
+				id: blogs.id,
+				slug: blogs.slug,
+				appId: blogs.appId,
+				appName: userApps.name,
+				createdAt: blogs.createdAt,
+				updatedAt: blogs.updatedAt,
+				versionId: blogVersions.id,
+				version: blogVersions.version,
+				title: blogVersions.title,
+				description: blogVersions.description,
+				status: blogVersions.status,
+				publishedAt: blogVersions.publishedAt,
+			})
+			.from(blogs)
+			.innerJoin(userApps, eq(blogs.appId, userApps.id))
+			.leftJoin(blogVersions, eq(blogVersions.blogId, blogs.id))
+			.where(eq(userApps.userId, user.id))
+			.orderBy(desc(blogs.updatedAt), desc(blogVersions.version));
+
+		const latest = new Map<
+			string,
+			(typeof rows)[number] & { versionId: string | null }
+		>();
+		for (const row of rows) {
+			const prev = latest.get(row.id);
+			if (!prev) {
+				latest.set(row.id, row);
+				continue;
+			}
+			if ((row.version ?? 0) > (prev.version ?? 0)) {
+				latest.set(row.id, row);
+			}
+		}
+
+		return [...latest.values()].map((row) => ({
+			id: row.id,
+			slug: row.slug,
+			appId: row.appId,
+			appName: row.appName,
+			createdAt: row.createdAt,
+			updatedAt: row.updatedAt,
+			versionId: row.versionId,
+			version: row.version ?? null,
+			title: row.title || row.slug,
+			description: row.description || "",
+			status: row.status ?? "draft",
+			publishedAt: row.publishedAt,
+		}));
+	})
 	// --- Admin: apps ---
 	.get("/api/admin/apps", async () => {
 		const db = await getDb();
@@ -212,7 +312,7 @@ export const app = new Elysia({ name: "blogs-api" })
 				id: newId(),
 				userId: user.id,
 				name: body.name.trim(),
-				url: body.url.trim(),
+				url: assertHttpUrl(body.url.trim()),
 				createdAt: ts,
 				updatedAt: ts,
 			};
@@ -236,7 +336,7 @@ export const app = new Elysia({ name: "blogs-api" })
 			const ts = now();
 			const patch = {
 				...(body.name !== undefined ? { name: body.name.trim() } : {}),
-				...(body.url !== undefined ? { url: body.url.trim() } : {}),
+				...(body.url !== undefined ? { url: assertHttpUrl(body.url.trim()) } : {}),
 				updatedAt: ts,
 			};
 			await db
@@ -320,16 +420,55 @@ export const app = new Elysia({ name: "blogs-api" })
 		return { ok: true };
 	})
 	// --- Admin: blogs ---
+	.get("/api/admin/apps/:appId", async ({ params }) => {
+		const db = await getDb();
+		const user = await requireClerkUser(db);
+		const appRow = await ownedApp(db, user.id, params.appId);
+		if (!appRow) throw new HttpError(404, { error: "App not found" });
+		return appRow;
+	})
 	.get("/api/admin/apps/:appId/blogs", async ({ params }) => {
 		const db = await getDb();
 		const user = await requireClerkUser(db);
 		const appRow = await ownedApp(db, user.id, params.appId);
 		if (!appRow) throw new HttpError(404, { error: "App not found" });
-		return db
-			.select()
+		const rows = await db
+			.select({
+				id: blogs.id,
+				slug: blogs.slug,
+				appId: blogs.appId,
+				createdAt: blogs.createdAt,
+				updatedAt: blogs.updatedAt,
+				versionId: blogVersions.id,
+				version: blogVersions.version,
+				title: blogVersions.title,
+				description: blogVersions.description,
+				status: blogVersions.status,
+			})
 			.from(blogs)
+			.leftJoin(blogVersions, eq(blogVersions.blogId, blogs.id))
 			.where(eq(blogs.appId, appRow.id))
-			.orderBy(desc(blogs.createdAt));
+			.orderBy(desc(blogs.updatedAt), desc(blogVersions.version));
+
+		const latest = new Map<string, (typeof rows)[number]>();
+		for (const row of rows) {
+			const prev = latest.get(row.id);
+			if (!prev || (row.version ?? 0) > (prev.version ?? 0)) {
+				latest.set(row.id, row);
+			}
+		}
+		return [...latest.values()].map((row) => ({
+			id: row.id,
+			slug: row.slug,
+			appId: row.appId,
+			createdAt: row.createdAt,
+			updatedAt: row.updatedAt,
+			versionId: row.versionId,
+			version: row.version ?? null,
+			title: row.title || row.slug,
+			description: row.description || "",
+			status: row.status ?? "draft",
+		}));
 	})
 	.post(
 		"/api/admin/apps/:appId/blogs",
@@ -339,33 +478,41 @@ export const app = new Elysia({ name: "blogs-api" })
 			const appRow = await ownedApp(db, user.id, params.appId);
 			if (!appRow) throw new HttpError(404, { error: "App not found" });
 			const ts = now();
-			const blog = {
-				id: newId(),
-				appId: appRow.id,
-				slug: body.slug.trim(),
-				createdAt: ts,
-				updatedAt: ts,
-			};
-			await db.insert(blogs).values(blog);
-			const version = {
-				id: newId(),
-				blogId: blog.id,
-				version: 1,
-				title: body.title?.trim() || "",
-				description: body.description?.trim() || "",
-				status: "draft" as const,
-				publishedAt: null,
-				docSnapshot: "{}",
-				contentHtml: "",
-				createdAt: ts,
-				updatedAt: ts,
-			};
-			await db.insert(blogVersions).values(version);
-			return { blog, version };
+			const title = body.title?.trim() || "Untitled";
+			let slug = makeBlogSlug(title);
+			for (let attempt = 0; attempt < 8; attempt++) {
+				try {
+					const blog = {
+						id: newId(),
+						appId: appRow.id,
+						slug,
+						createdAt: ts,
+						updatedAt: ts,
+					};
+					await db.insert(blogs).values(blog);
+					const version = {
+						id: newId(),
+						blogId: blog.id,
+						version: 1,
+						title,
+						description: body.description?.trim() || "",
+						status: "draft" as const,
+						publishedAt: null,
+						docSnapshot: "{}",
+						contentHtml: "",
+						createdAt: ts,
+						updatedAt: ts,
+					};
+					await db.insert(blogVersions).values(version);
+					return { blog, version };
+				} catch {
+					slug = makeBlogSlug(title);
+				}
+			}
+			throw new HttpError(500, { error: "Failed to allocate unique slug" });
 		},
 		{
 			body: t.Object({
-				slug: t.String({ minLength: 1 }),
 				title: t.Optional(t.String()),
 				description: t.Optional(t.String()),
 			}),
@@ -465,7 +612,36 @@ export const app = new Elysia({ name: "blogs-api" })
 				.update(blogVersions)
 				.set(patch)
 				.where(eq(blogVersions.id, owned.version.id));
-			return { ...owned.version, ...patch };
+
+			let nextSlug = owned.blog.slug;
+			if (body.title !== undefined) {
+				const titleForSlug = body.title.trim() || "Untitled";
+				let allocated = false;
+				for (let attempt = 0; attempt < 8; attempt++) {
+					const candidate = makeBlogSlug(titleForSlug);
+					try {
+						await db
+							.update(blogs)
+							.set({ slug: candidate, updatedAt: ts })
+							.where(eq(blogs.id, owned.blog.id));
+						nextSlug = candidate;
+						allocated = true;
+						break;
+					} catch {
+						// unique conflict — retry
+					}
+				}
+				if (!allocated) {
+					throw new HttpError(500, { error: "Failed to allocate unique slug" });
+				}
+			} else {
+				await db
+					.update(blogs)
+					.set({ updatedAt: ts })
+					.where(eq(blogs.id, owned.blog.id));
+			}
+
+			return { ...owned.version, ...patch, slug: nextSlug };
 		},
 		{
 			body: t.Object({

@@ -1,4 +1,4 @@
-export * from "./schema";
+export * from "./schema/index";
 export { createDb, type Db } from "./client";
 
 export function now() {

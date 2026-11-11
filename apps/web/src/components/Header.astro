@@ -1,13 +1,17 @@
 ---
+import { Moon, Sun } from "lucide-static";
+import { site } from "../config/site";
+
 interface Props {
 	current?: "home" | "blogs";
 }
 
 const { current } = Astro.props;
+const storageKey = site.themeStorageKey;
 ---
 
 <header class="site-header">
-	<a class="site-brand" href="/">whoami</a>
+	<a class="site-brand" href="/">{site.name}</a>
 	<nav class="site-nav" aria-label="Primary">
 		<button
 			class="theme-toggle"
@@ -15,8 +19,8 @@ const { current } = Astro.props;
 			aria-label="Toggle light and dark theme"
 			data-theme-toggle
 		>
-			<span class="icon-sun" aria-hidden="true">☀</span>
-			<span class="icon-moon" aria-hidden="true">☾</span>
+			<span class="icon-sun" aria-hidden="true" set:html={Sun} />
+			<span class="icon-moon" aria-hidden="true" set:html={Moon} />
 		</button>
 		<a href="/" aria-current={current === "home" ? "page" : undefined}>Home</a>
 		<a href="/blogs" aria-current={current === "blogs" ? "page" : undefined}
@@ -25,9 +29,8 @@ const { current } = Astro.props;
 	</nav>
 </header>
 
-<script is:inline>
+<script is:inline define:vars={{ storageKey }}>
 	(() => {
-		const storageKey = "whoami-theme";
 		const root = document.documentElement;
 
 		const apply = (theme) => {
