@@ -583,7 +583,11 @@ export const app = new Elysia({ name: "blogs-api" })
 		const user = await requireClerkUser(db);
 		const owned = await ownedVersion(db, user.id, params.versionId);
 		if (!owned) throw new HttpError(404, { error: "Version not found" });
-		return owned.version;
+		return {
+			...owned.version,
+			blogId: owned.blog.id,
+			appId: owned.app.id,
+		};
 	})
 	.patch(
 		"/api/admin/versions/:versionId",
