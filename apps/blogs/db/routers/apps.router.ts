@@ -1,49 +1,52 @@
-import { t } from "elysia";
+import { zValidator } from "@hono/zod-validator";
+import { z } from "zod";
 import type { AppsService } from "../services/apps.service";
 import type { UserRow } from "../services/me.service";
-import { createWorkerElysia } from "./worker-elysia.router";
+import { createWorkerHono } from "./worker-hono.router";
+
+const createAppBody = z.object({
+	name: z.string().min(1),
+	url: z.string().min(1),
+});
+
+const patchAppBody = z.object({
+	name: z.string().min(1).optional(),
+	url: z.string().min(1).optional(),
+});
 
 export function createAppsRouter(deps: {
 	service: AppsService;
 	requireUser: () => Promise<UserRow>;
 }) {
-	return createWorkerElysia("apps")
-		.get("/api/admin/apps", async () => {
+	return createWorkerHono("apps")
+		.get("/api/admin/apps", async (c) => {
 			const user = await deps.requireUser();
-			return deps.service.list(user);
+			return c.json(await deps.service.list(user));
 		})
-		.get("/api/admin/apps/:appId", async ({ params }) => {
+		.get("/api/admin/apps/:appId", async (c) => {
 			const user = await deps.requireUser();
-			return deps.service.get(user, params.appId);
+			return c.json(await deps.service.get(user, c.req.param("appId")));
 		})
-		.post(
-			"/api/admin/apps",
-			async ({ body }) => {
-				const user = await deps.requireUser();
-				return deps.service.create(user, body);
-			},
-			{
-				body: t.Object({
-					name: t.String({ minLength: 1 }),
-					url: t.String({ minLength: 1 }),
-				}),
-			},
-		)
+		.post("/api/admin/apps", zValidator("json", createAppBody), async (c) => {
+			const user = await deps.requireUser();
+			return c.json(await deps.service.create(user, c.req.valid("json")));
+		})
 		.patch(
 			"/api/admin/apps/:appId",
-			async ({ params, body }) => {
+			zValidator("json", patchAppBody),
+			async (c) => {
 				const user = await deps.requireUser();
-				return deps.service.update(user, params.appId, body);
-			},
-			{
-				body: t.Object({
-					name: t.Optional(t.String({ minLength: 1 })),
-					url: t.Optional(t.String({ minLength: 1 })),
-				}),
+				return c.json(
+					await deps.service.update(
+						user,
+						c.req.param("appId"),
+						c.req.valid("json"),
+					),
+				);
 			},
 		)
-		.delete("/api/admin/apps/:appId", async ({ params }) => {
+		.delete("/api/admin/apps/:appId", async (c) => {
 			const user = await deps.requireUser();
-			return deps.service.remove(user, params.appId);
+			return c.json(await deps.service.remove(user, c.req.param("appId")));
 		});
 }

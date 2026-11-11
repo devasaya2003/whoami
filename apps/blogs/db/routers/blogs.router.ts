@@ -1,58 +1,69 @@
-import { t } from "elysia";
+import { zValidator } from "@hono/zod-validator";
+import { z } from "zod";
 import type { BlogsService } from "../services/blogs.service";
 import type { UserRow } from "../services/me.service";
-import { createWorkerElysia } from "./worker-elysia.router";
+import { createWorkerHono } from "./worker-hono.router";
+
+const createBlogBody = z.object({
+	title: z.string().optional(),
+	description: z.string().optional(),
+});
+
+const patchBlogBody = z.object({
+	title: z.string().optional(),
+	description: z.string().optional(),
+	status: z.enum(["draft", "public"]).optional(),
+	docSnapshot: z.string().optional(),
+	contentHtml: z.string().optional(),
+});
 
 export function createBlogsRouter(deps: {
 	service: BlogsService;
 	requireUser: () => Promise<UserRow>;
 }) {
-	return createWorkerElysia("blogs")
-		.get("/api/admin/blogs", async () => {
+	return createWorkerHono("blogs")
+		.get("/api/admin/blogs", async (c) => {
 			const user = await deps.requireUser();
-			return deps.service.listAll(user);
+			return c.json(await deps.service.listAll(user));
 		})
-		.get("/api/admin/apps/:appId/blogs", async ({ params }) => {
+		.get("/api/admin/apps/:appId/blogs", async (c) => {
 			const user = await deps.requireUser();
-			return deps.service.listForApp(user, params.appId);
+			return c.json(await deps.service.listForApp(user, c.req.param("appId")));
 		})
 		.post(
 			"/api/admin/apps/:appId/blogs",
-			async ({ params, body }) => {
+			zValidator("json", createBlogBody),
+			async (c) => {
 				const user = await deps.requireUser();
-				return deps.service.create(user, params.appId, body);
-			},
-			{
-				body: t.Object({
-					title: t.Optional(t.String()),
-					description: t.Optional(t.String()),
-				}),
+				return c.json(
+					await deps.service.create(
+						user,
+						c.req.param("appId"),
+						c.req.valid("json"),
+					),
+				);
 			},
 		)
-		.get("/api/admin/blogs/:blogId", async ({ params }) => {
+		.get("/api/admin/blogs/:blogId", async (c) => {
 			const user = await deps.requireUser();
-			return deps.service.get(user, params.blogId);
+			return c.json(await deps.service.get(user, c.req.param("blogId")));
 		})
-		.delete("/api/admin/blogs/:blogId", async ({ params }) => {
+		.delete("/api/admin/blogs/:blogId", async (c) => {
 			const user = await deps.requireUser();
-			return deps.service.remove(user, params.blogId);
+			return c.json(await deps.service.remove(user, c.req.param("blogId")));
 		})
 		.patch(
 			"/api/admin/blogs/:blogId",
-			async ({ params, body }) => {
+			zValidator("json", patchBlogBody),
+			async (c) => {
 				const user = await deps.requireUser();
-				return deps.service.update(user, params.blogId, body);
-			},
-			{
-				body: t.Object({
-					title: t.Optional(t.String()),
-					description: t.Optional(t.String()),
-					status: t.Optional(
-						t.Union([t.Literal("draft"), t.Literal("public")]),
+				return c.json(
+					await deps.service.update(
+						user,
+						c.req.param("blogId"),
+						c.req.valid("json"),
 					),
-					docSnapshot: t.Optional(t.String()),
-					contentHtml: t.Optional(t.String()),
-				}),
+				);
 			},
 		);
 }

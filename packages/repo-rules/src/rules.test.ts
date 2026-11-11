@@ -36,7 +36,7 @@ const GOOD: Record<string, string> = {
     'import { r } from "../repositories/items.repository";\nimport { z } from "zod";\nexport const s = [r, z];',
   "db/services/items.service.test.ts": "",
   "db/routers/items.router.ts":
-    'import { s } from "@/db/services/items.service";\nimport { Elysia } from "elysia";\nexport const router = [s, Elysia];',
+    'import { s } from "@/db/services/items.service";\nimport { Hono } from "hono";\nexport const router = [s, Hono];',
   "db/routers/items.router.test.ts": "",
 };
 
@@ -165,14 +165,14 @@ describe("rule 1 and 2: backend structure", () => {
     );
   });
 
-  it("limits drizzle-orm, elysia and composition-root imports to their layer", () => {
+  it("limits drizzle-orm, hono and composition-root imports to their layer", () => {
     const found = messages(
       fixture({
         ...GOOD,
         "db/services/items.service.ts":
-          'import { eq } from "drizzle-orm/pg-core";\nimport { Elysia } from "elysia";\nimport { putObject } from "@repo/storage";\nexport const s = [eq, Elysia, putObject];',
+          'import { eq } from "drizzle-orm/pg-core";\nimport { Hono } from "hono";\nimport { putObject } from "@repo/storage";\nexport const s = [eq, Hono, putObject];',
         "db/repositories/items.repository.ts":
-          'import { Elysia } from "elysia";\nexport const r = Elysia;',
+          'import { zValidator } from "@hono/zod-validator";\nexport const r = zValidator;',
       })
     );
     expect(
@@ -304,6 +304,52 @@ describe("rule 3: custom component stories", () => {
   it("rejects stories without a component", () => {
     const root = fixture({ [`${stories}/ghost.stories.tsx`]: goodStory });
     expect(checkCustomStories(root)).toHaveLength(1);
+  });
+});
+
+
+describe("rule 1: hono router returns", () => {
+  const base = { ...GOOD };
+
+  it("rejects bare object returns from route handlers", () => {
+    const found = messages(
+      fixture({
+        ...base,
+        "db/routers/items.router.ts":
+          'import { Hono } from "hono";\nexport const router = new Hono().get("/x", (c) => {\n  return { ok: true };\n});',
+      })
+    );
+    expect(
+      found.some((m) =>
+        m.includes("router handlers must return c.json")
+      )
+    ).toBe(true);
+  });
+
+  it("accepts c.json returns", () => {
+    const found = messages(
+      fixture({
+        ...base,
+        "db/routers/items.router.ts":
+          'import { Hono } from "hono";\nexport const router = new Hono().get("/x", (c) => {\n  return c.json({ ok: true });\n});',
+      })
+    );
+    expect(
+      found.filter((m) => m.includes("router handlers must return"))
+    ).toEqual([]);
+  });
+
+  it("accepts new Response returns", () => {
+    const found = messages(
+      fixture({
+        ...base,
+        "db/routers/items.router.ts":
+          'import { Hono } from "hono";\nexport const router = new Hono().get("/x", (c) => {\n  return new Response("ok");\n});',
+      })
+    );
+    expect(
+      found.filter((m) => m.includes("router handlers must return"))
+    ).toEqual([]);
   });
 });
 

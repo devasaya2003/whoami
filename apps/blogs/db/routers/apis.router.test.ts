@@ -20,11 +20,11 @@ it("covers api key admin routes", async () => {
 	const router = createApisRouter({ service: service as never, requireUser });
 
 	expect(
-		(await router.handle(new Request("http://localhost/api/admin/apis"))).status,
+		(await router.request(new Request("http://localhost/api/admin/apis"))).status,
 	).toBe(200);
 	expect(
 		(
-			await router.handle(
+			await router.request(
 				new Request("http://localhost/api/admin/apis", {
 					method: "POST",
 					headers: { "content-type": "application/json" },
@@ -36,7 +36,7 @@ it("covers api key admin routes", async () => {
 	expect(service.create).toHaveBeenCalledWith(user, "Dev");
 	expect(
 		(
-			await router.handle(
+			await router.request(
 				new Request("http://localhost/api/admin/apis/k1", { method: "DELETE" }),
 			)
 		).status,

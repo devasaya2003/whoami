@@ -28,7 +28,7 @@ function app(resolve: ReturnType<typeof vi.fn> = vi.fn().mockResolvedValue(user)
 
 it("lists and gets public blogs via api key", async () => {
 	const { router, service, resolve } = app();
-	const list = await router.handle(
+	const list = await router.request(
 		new Request("http://localhost/api/v1/blogs", {
 			headers: { "app-id": "a1", "x-api-key": "k" },
 		}),
@@ -36,7 +36,7 @@ it("lists and gets public blogs via api key", async () => {
 	expect(list.status).toBe(200);
 	expect(service.list).toHaveBeenCalledWith(user, "a1");
 
-	const get = await router.handle(
+	const get = await router.request(
 		new Request("http://localhost/api/v1/blogs/hello", {
 			headers: { "app-id": "a1", type: '["html","md"]' },
 		}),
@@ -50,16 +50,16 @@ it("lists and gets public blogs via api key", async () => {
 	);
 
 	resolve.mockResolvedValueOnce(null);
-	const unauthorized = await router.handle(new Request("http://localhost/api/v1/blogs"));
+	const unauthorized = await router.request(new Request("http://localhost/api/v1/blogs"));
 	expect(unauthorized.status).toBe(401);
 
 	resolve.mockResolvedValueOnce(null);
-	const unauthorizedGet = await router.handle(
+	const unauthorizedGet = await router.request(
 		new Request("http://localhost/api/v1/blogs/x"),
 	);
 	expect(unauthorizedGet.status).toBe(401);
 
-	const noApp = await router.handle(
+	const noApp = await router.request(
 		new Request("http://localhost/api/v1/blogs/hello", {
 			headers: { "x-api-key": "k" },
 		}),
@@ -71,7 +71,7 @@ it("lists and gets public blogs via api key", async () => {
 it("surfaces service http errors", async () => {
 	const { router, service } = app();
 	service.list.mockRejectedValueOnce(new HttpError(400, { error: "no app" }));
-	const res = await router.handle(
+	const res = await router.request(
 		new Request("http://localhost/api/v1/blogs", { headers: { "x-api-key": "k" } }),
 	);
 	expect(res.status).toBe(400);

@@ -29,7 +29,25 @@ const MAY_IMPORT: Record<DbDir, readonly DbDir[]> = {
   routers: ["routers", "services"],
 };
 const DRIZZLE_ALLOWED: readonly DbDir[] = ["schema", "repositories"];
-const ELYSIA_ALLOWED: readonly DbDir[] = ["routers"];
+const HONO_ALLOWED: readonly DbDir[] = ["routers"];
+const HONO_RESPONSE_METHODS = new Set([
+  "json",
+  "body",
+  "text",
+  "html",
+  "redirect",
+]);
+const HONO_HANDLER_METHODS = new Set([
+  "get",
+  "post",
+  "put",
+  "patch",
+  "delete",
+  "all",
+  "use",
+  "on",
+  "onError",
+]);
 /** Created once in the app's composition root and injected into the layers. */
 const COMPOSITION_ONLY_IMPORTS = [
   "@repo/storage",
@@ -129,13 +147,16 @@ function checkImports(
         )
       );
     }
-    const isElysia = specifier === "elysia";
-    if (isElysia && !ELYSIA_ALLOWED.includes(layer)) {
+    const isHono =
+      specifier === "hono" ||
+      specifier === "@hono/zod-validator" ||
+      specifier.startsWith("@hono/");
+    if (isHono && !HONO_ALLOWED.includes(layer)) {
       found.push(
         violation(
           1,
           path,
-          `elysia belongs in routers/, not ${layer}/`
+          `hono belongs in routers/, not ${layer}/`
         )
       );
     }
@@ -149,6 +170,98 @@ function checkImports(
       );
     }
   }
+  return found;
+}
+
+
+function unwrapExpression(expr: ts.Expression): ts.Expression {
+  let current = expr;
+  while (
+    ts.isAwaitExpression(current) ||
+    ts.isParenthesizedExpression(current)
+  ) {
+    current = current.expression;
+  }
+  return current;
+}
+
+function isAllowedHonoReturn(expr: ts.Expression | undefined): boolean {
+  if (!expr) return true;
+  const value = unwrapExpression(expr);
+  if (
+    ts.isNewExpression(value) &&
+    ts.isIdentifier(value.expression) &&
+    value.expression.text === "Response"
+  ) {
+    return true;
+  }
+  if (
+    ts.isCallExpression(value) &&
+    ts.isPropertyAccessExpression(value.expression) &&
+    ts.isIdentifier(value.expression.expression) &&
+    value.expression.expression.text === "c" &&
+    HONO_RESPONSE_METHODS.has(value.expression.name.text)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function checkHandlerFunctionReturns(
+  fn: ts.ArrowFunction | ts.FunctionExpression,
+  path: string,
+  found: Violation[]
+): void {
+  const body = fn.body;
+  if (!body) return;
+  if (!ts.isBlock(body)) {
+    if (!isAllowedHonoReturn(body)) {
+      found.push(
+        violation(
+          1,
+          path,
+          "router handlers must return c.json(...), c.body(...), c.text(...), c.html(...), c.redirect(...), or new Response(...)"
+        )
+      );
+    }
+    return;
+  }
+  const visit = (node: ts.Node) => {
+    if (ts.isReturnStatement(node) && !isAllowedHonoReturn(node.expression)) {
+      found.push(
+        violation(
+          1,
+          path,
+          "router handlers must return c.json(...), c.body(...), c.text(...), c.html(...), c.redirect(...), or new Response(...)"
+        )
+      );
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(body);
+}
+
+/** Rule 1: Hono route handlers must return an explicit response builder. */
+function checkHonoRouterReturns(file: string, appDir: string): Violation[] {
+  const path = toPosix(relative(appDir, file));
+  const source = readFileSync(file, "utf8");
+  const sf = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+  const found: Violation[] = [];
+  const visit = (node: ts.Node) => {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      HONO_HANDLER_METHODS.has(node.expression.name.text)
+    ) {
+      for (const arg of node.arguments) {
+        if (ts.isArrowFunction(arg) || ts.isFunctionExpression(arg)) {
+          checkHandlerFunctionReturns(arg, path, found);
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
   return found;
 }
 
@@ -188,7 +301,11 @@ function checkLayerDir(
       if (!names.has(testName)) {
         found.push(violation(2, path, `missing test file ${testName}`));
       }
-      found.push(...checkImports(join(dir, entry.name), layer, dbRoot, appDir));
+      const filePath = join(dir, entry.name);
+      found.push(...checkImports(filePath, layer, dbRoot, appDir));
+      if (layer === "routers") {
+        found.push(...checkHonoRouterReturns(filePath, appDir));
+      }
     }
   }
   return found;

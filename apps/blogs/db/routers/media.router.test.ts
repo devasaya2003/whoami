@@ -24,7 +24,7 @@ it("serves media and manages uploads", async () => {
 
 	expect(
 		(
-			await router.handle(new Request("http://localhost/api/media/uploads/a.png"))
+			await router.request(new Request("http://localhost/api/media/uploads/a.png"))
 		).status,
 	).toBe(200);
 
@@ -32,7 +32,7 @@ it("serves media and manages uploads", async () => {
 	form.set("file", new File(["x"], "a.png", { type: "image/png" }));
 	expect(
 		(
-			await router.handle(
+			await router.request(
 				new Request("http://localhost/api/admin/uploads", {
 					method: "POST",
 					body: form,
@@ -44,7 +44,7 @@ it("serves media and manages uploads", async () => {
 	const missing = new FormData();
 	expect(
 		(
-			await router.handle(
+			await router.request(
 				new Request("http://localhost/api/admin/uploads", {
 					method: "POST",
 					body: missing,
@@ -55,7 +55,7 @@ it("serves media and manages uploads", async () => {
 
 	expect(
 		(
-			await router.handle(
+			await router.request(
 				new Request("http://localhost/api/admin/uploads", {
 					method: "DELETE",
 					headers: { "content-type": "application/json" },
@@ -89,17 +89,17 @@ it("maps unexpected errors to 500 and rethrows HttpError", async () => {
 
 	expect(
 		(
-			await router.handle(new Request("http://localhost/api/media/uploads/a.png"))
+			await router.request(new Request("http://localhost/api/media/uploads/a.png"))
 		).status,
 	).toBe(500);
 	expect(
 		(
-			await router.handle(new Request("http://localhost/api/media/uploads/a.png"))
+			await router.request(new Request("http://localhost/api/media/uploads/a.png"))
 		).status,
 	).toBe(500);
 	expect(
 		(
-			await router.handle(new Request("http://localhost/api/media/uploads/a.png"))
+			await router.request(new Request("http://localhost/api/media/uploads/a.png"))
 		).status,
 	).toBe(404);
 
@@ -110,7 +110,7 @@ it("maps unexpected errors to 500 and rethrows HttpError", async () => {
 	};
 	expect(
 		(
-			await router.handle(
+			await router.request(
 				new Request("http://localhost/api/admin/uploads", {
 					method: "POST",
 					body: form(),
@@ -120,7 +120,7 @@ it("maps unexpected errors to 500 and rethrows HttpError", async () => {
 	).toBe(500);
 	expect(
 		(
-			await router.handle(
+			await router.request(
 				new Request("http://localhost/api/admin/uploads", {
 					method: "POST",
 					body: form(),
@@ -130,7 +130,7 @@ it("maps unexpected errors to 500 and rethrows HttpError", async () => {
 	).toBe(500);
 	expect(
 		(
-			await router.handle(
+			await router.request(
 				new Request("http://localhost/api/admin/uploads", {
 					method: "POST",
 					body: form(),
@@ -140,7 +140,7 @@ it("maps unexpected errors to 500 and rethrows HttpError", async () => {
 	).toBe(400);
 
 	const del = async () =>
-		router.handle(
+		router.request(
 			new Request("http://localhost/api/admin/uploads", {
 				method: "DELETE",
 				headers: { "content-type": "application/json" },

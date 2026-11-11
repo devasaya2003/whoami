@@ -1,31 +1,29 @@
-import { t } from "elysia";
+import { zValidator } from "@hono/zod-validator";
+import { z } from "zod";
 import type { ApisService } from "../services/apis.service";
 import type { UserRow } from "../services/me.service";
-import { createWorkerElysia } from "./worker-elysia.router";
+import { createWorkerHono } from "./worker-hono.router";
+
+const createApiBody = z.object({
+	name: z.string().min(1),
+});
 
 export function createApisRouter(deps: {
 	service: ApisService;
 	requireUser: () => Promise<UserRow>;
 }) {
-	return createWorkerElysia("apis")
-		.get("/api/admin/apis", async () => {
+	return createWorkerHono("apis")
+		.get("/api/admin/apis", async (c) => {
 			const user = await deps.requireUser();
-			return deps.service.list(user);
+			return c.json(await deps.service.list(user));
 		})
-		.post(
-			"/api/admin/apis",
-			async ({ body }) => {
-				const user = await deps.requireUser();
-				return deps.service.create(user, body.name);
-			},
-			{
-				body: t.Object({
-					name: t.String({ minLength: 1 }),
-				}),
-			},
-		)
-		.delete("/api/admin/apis/:apiId", async ({ params }) => {
+		.post("/api/admin/apis", zValidator("json", createApiBody), async (c) => {
 			const user = await deps.requireUser();
-			return deps.service.remove(user, params.apiId);
+			const body = c.req.valid("json");
+			return c.json(await deps.service.create(user, body.name));
+		})
+		.delete("/api/admin/apis/:apiId", async (c) => {
+			const user = await deps.requireUser();
+			return c.json(await deps.service.remove(user, c.req.param("apiId")));
 		});
 }

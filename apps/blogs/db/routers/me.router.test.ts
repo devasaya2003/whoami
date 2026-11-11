@@ -18,12 +18,12 @@ it("gets and patches the current user", async () => {
 	const requireUser = vi.fn().mockResolvedValue(user);
 	const router = createMeRouter({ service: service as never, requireUser });
 
-	expect((await router.handle(new Request("http://localhost/api/admin/me"))).status).toBe(
+	expect((await router.request(new Request("http://localhost/api/admin/me"))).status).toBe(
 		200,
 	);
 	expect(service.get).toHaveBeenCalledWith(user);
 
-	const patch = await router.handle(
+	const patch = await router.request(
 		new Request("http://localhost/api/admin/me", {
 			method: "PATCH",
 			headers: { "content-type": "application/json" },

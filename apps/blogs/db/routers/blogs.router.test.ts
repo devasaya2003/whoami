@@ -23,16 +23,16 @@ it("covers blog admin routes", async () => {
 	const router = createBlogsRouter({ service: service as never, requireUser });
 
 	expect(
-		(await router.handle(new Request("http://localhost/api/admin/blogs"))).status,
+		(await router.request(new Request("http://localhost/api/admin/blogs"))).status,
 	).toBe(200);
 	expect(
 		(
-			await router.handle(new Request("http://localhost/api/admin/apps/a1/blogs"))
+			await router.request(new Request("http://localhost/api/admin/apps/a1/blogs"))
 		).status,
 	).toBe(200);
 	expect(
 		(
-			await router.handle(
+			await router.request(
 				new Request("http://localhost/api/admin/apps/a1/blogs", {
 					method: "POST",
 					headers: { "content-type": "application/json" },
@@ -42,18 +42,18 @@ it("covers blog admin routes", async () => {
 		).status,
 	).toBe(200);
 	expect(
-		(await router.handle(new Request("http://localhost/api/admin/blogs/b1"))).status,
+		(await router.request(new Request("http://localhost/api/admin/blogs/b1"))).status,
 	).toBe(200);
 	expect(
 		(
-			await router.handle(
+			await router.request(
 				new Request("http://localhost/api/admin/blogs/b1", { method: "DELETE" }),
 			)
 		).status,
 	).toBe(200);
 	expect(
 		(
-			await router.handle(
+			await router.request(
 				new Request("http://localhost/api/admin/blogs/b1", {
 					method: "PATCH",
 					headers: { "content-type": "application/json" },

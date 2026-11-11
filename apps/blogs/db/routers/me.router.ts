@@ -1,27 +1,29 @@
-import { t } from "elysia";
+import { zValidator } from "@hono/zod-validator";
+import { z } from "zod";
 import type { MeService } from "../services/me.service";
 import type { UserRow } from "../services/me.service";
-import { createWorkerElysia } from "./worker-elysia.router";
+import { createWorkerHono } from "./worker-hono.router";
+
+const patchMeBody = z.object({
+	name: z.string().min(1).max(120),
+});
 
 export function createMeRouter(deps: {
 	service: MeService;
 	requireUser: () => Promise<UserRow>;
 }) {
-	return createWorkerElysia("me")
-		.get("/api/admin/me", async () => {
+	return createWorkerHono("me")
+		.get("/api/admin/me", async (c) => {
 			const user = await deps.requireUser();
-			return deps.service.get(user);
+			return c.json(deps.service.get(user));
 		})
 		.patch(
 			"/api/admin/me",
-			async ({ body }) => {
+			zValidator("json", patchMeBody),
+			async (c) => {
 				const user = await deps.requireUser();
-				return deps.service.update(user, body.name);
-			},
-			{
-				body: t.Object({
-					name: t.String({ minLength: 1, maxLength: 120 }),
-				}),
+				const body = c.req.valid("json");
+				return c.json(await deps.service.update(user, body.name));
 			},
 		);
 }

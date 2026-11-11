@@ -4,7 +4,7 @@ import { createBlogsRouter } from "@/db/routers/blogs.router";
 import { createMediaRouter } from "@/db/routers/media.router";
 import { createMeRouter } from "@/db/routers/me.router";
 import { createPublicBlogsRouter } from "@/db/routers/public-blogs.router";
-import { createWorkerElysia } from "@/db/routers/worker-elysia.router";
+import { createWorkerHono } from "@/db/routers/worker-hono.router";
 import type { UserRow } from "@/db/repositories/users.repository";
 import type { Container } from "./container";
 
@@ -15,45 +15,49 @@ export function buildApi(
 		resolveApiUser: (request: Request) => Promise<UserRow | null>;
 	},
 ) {
-	return createWorkerElysia("blogs-api")
-		.use(
+	return createWorkerHono("blogs-api")
+		.route(
+			"/",
 			createPublicBlogsRouter({
 				service: services.publicBlogs,
 				resolveApiUser: auth.resolveApiUser,
 			}),
 		)
-		.use(
+		.route(
+			"/",
 			createMeRouter({
 				service: services.me,
 				requireUser: auth.requireUser,
 			}),
 		)
-		.use(
+		.route(
+			"/",
 			createAppsRouter({
 				service: services.apps,
 				requireUser: auth.requireUser,
 			}),
 		)
-		.use(
+		.route(
+			"/",
 			createApisRouter({
 				service: services.apis,
 				requireUser: auth.requireUser,
 			}),
 		)
-		.use(
+		.route(
+			"/",
 			createBlogsRouter({
 				service: services.blogs,
 				requireUser: auth.requireUser,
 			}),
 		)
-		.use(
+		.route(
+			"/",
 			createMediaRouter({
 				service: services.media,
 				requireUser: auth.requireUser,
 			}),
-		)
-		// Required for Cloudflare Worker: https://elysiajs.com/integrations/cloudflare-worker
-		.compile();
+		);
 }
 
 export type Api = ReturnType<typeof buildApi>;

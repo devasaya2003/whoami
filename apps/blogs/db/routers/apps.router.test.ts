@@ -22,14 +22,14 @@ it("covers app admin routes", async () => {
 	const router = createAppsRouter({ service: service as never, requireUser });
 
 	expect(
-		(await router.handle(new Request("http://localhost/api/admin/apps"))).status,
+		(await router.request(new Request("http://localhost/api/admin/apps"))).status,
 	).toBe(200);
 	expect(
-		(await router.handle(new Request("http://localhost/api/admin/apps/a1"))).status,
+		(await router.request(new Request("http://localhost/api/admin/apps/a1"))).status,
 	).toBe(200);
 	expect(
 		(
-			await router.handle(
+			await router.request(
 				new Request("http://localhost/api/admin/apps", {
 					method: "POST",
 					headers: { "content-type": "application/json" },
@@ -40,7 +40,7 @@ it("covers app admin routes", async () => {
 	).toBe(200);
 	expect(
 		(
-			await router.handle(
+			await router.request(
 				new Request("http://localhost/api/admin/apps/a1", {
 					method: "PATCH",
 					headers: { "content-type": "application/json" },
@@ -51,7 +51,7 @@ it("covers app admin routes", async () => {
 	).toBe(200);
 	expect(
 		(
-			await router.handle(
+			await router.request(
 				new Request("http://localhost/api/admin/apps/a1", { method: "DELETE" }),
 			)
 		).status,

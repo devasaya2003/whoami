@@ -1,17 +1,32 @@
-import { t } from "elysia";
+import { zValidator } from "@hono/zod-validator";
+import { z } from "zod";
 import { HttpError } from "../services/http-error.service";
 import type { MediaService } from "../services/media.service";
 import type { UserRow } from "../services/me.service";
-import { createWorkerElysia } from "./worker-elysia.router";
+import { createWorkerHono } from "./worker-hono.router";
+
+const uploadForm = z.object({
+	file: z.custom<File>((value) => value instanceof File).optional(),
+});
+
+const deleteBody = z.object({
+	url: z.string().optional(),
+	key: z.string().optional(),
+});
 
 export function createMediaRouter(deps: {
 	service: MediaService;
 	requireUser: () => Promise<UserRow>;
 }) {
-	return createWorkerElysia("media")
-		.get("/api/media/*", async ({ params }) => {
+	return createWorkerHono("media")
+		.get("/api/media/*", async (c) => {
 			try {
-				return await deps.service.getObject(String(params["*"]));
+				const key = c.req.path.replace(/^\/api\/media\//, "");
+				const res = await deps.service.getObject(key);
+				return new Response(res.body, {
+					status: res.status,
+					headers: res.headers,
+				});
 			} catch (error) {
 				if (error instanceof HttpError) throw error;
 				console.error("[media] GET failed", error);
@@ -22,14 +37,15 @@ export function createMediaRouter(deps: {
 		})
 		.post(
 			"/api/admin/uploads",
-			async ({ body }) => {
+			zValidator("form", uploadForm),
+			async (c) => {
 				try {
 					const user = await deps.requireUser();
-					const file = body.file;
+					const file = c.req.valid("form").file;
 					if (!(file instanceof File)) {
 						throw new HttpError(400, { error: "file is required" });
 					}
-					return await deps.service.upload(user, file);
+					return c.json(await deps.service.upload(user, file));
 				} catch (error) {
 					if (error instanceof HttpError) throw error;
 					console.error("[uploads] POST failed", error);
@@ -38,18 +54,14 @@ export function createMediaRouter(deps: {
 					throw new HttpError(500, { error: message });
 				}
 			},
-			{
-				body: t.Object({
-					file: t.Optional(t.File()),
-				}),
-			},
 		)
 		.delete(
 			"/api/admin/uploads",
-			async ({ body }) => {
+			zValidator("json", deleteBody),
+			async (c) => {
 				try {
 					const user = await deps.requireUser();
-					return await deps.service.remove(user, body);
+					return c.json(await deps.service.remove(user, c.req.valid("json")));
 				} catch (error) {
 					if (error instanceof HttpError) throw error;
 					console.error("[uploads] DELETE failed", error);
@@ -57,12 +69,6 @@ export function createMediaRouter(deps: {
 						error instanceof Error ? error.message : "Delete failed";
 					throw new HttpError(500, { error: message });
 				}
-			},
-			{
-				body: t.Object({
-					url: t.Optional(t.String()),
-					key: t.Optional(t.String()),
-				}),
 			},
 		);
 }
