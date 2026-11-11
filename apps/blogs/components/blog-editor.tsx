@@ -18,14 +18,13 @@ import { NotionEditor } from "@/components/lexical-editor/editor";
 import { PublishedHtml } from "@/components/published-html";
 import { SettingsDialog } from "@/components/settings-dialog";
 
-type VersionPayload = {
+type BlogPayload = {
 	id: string;
 	title: string;
 	description: string;
 	status: "draft" | "public";
 	docSnapshot: string;
 	contentHtml: string;
-	blogId?: string;
 	appId?: string;
 };
 
@@ -39,11 +38,11 @@ type SaveStatus = "idle" | "saving" | "saved" | "error";
 const AUTOSAVE_MS = 800;
 
 function parseInitialState(
-	version: VersionPayload,
+	blog: BlogPayload,
 ): SerializedEditorState | null {
-	if (!version.docSnapshot) return null;
+	if (!blog.docSnapshot) return null;
 	try {
-		const snap = JSON.parse(version.docSnapshot) as SnapshotEnvelope;
+		const snap = JSON.parse(blog.docSnapshot) as SnapshotEnvelope;
 		if (snap.format === "lexical-json-v1" && snap.json) {
 			return snap.json;
 		}
@@ -53,7 +52,7 @@ function parseInitialState(
 	return null;
 }
 
-export function BlogEditor({ versionId }: { versionId: string }) {
+export function BlogEditor({ blogId }: { blogId: string }) {
 	const editorRef = useRef<LexicalEditor | null>(null);
 	const skipAutosave = useRef(true);
 	const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -86,22 +85,22 @@ export function BlogEditor({ versionId }: { versionId: string }) {
 		setSaveStatus("idle");
 
 		async function load() {
-			const res = await fetch(`/api/admin/versions/${versionId}`);
-			if (!res.ok) throw new Error("Failed to load version");
-			const version = (await res.json()) as VersionPayload;
+			const res = await fetch(`/api/admin/blogs/${blogId}`);
+			if (!res.ok) throw new Error("Failed to load blog");
+			const blog = (await res.json()) as BlogPayload;
 			if (cancelled) return;
 
-			setTitle(version.title);
-			setDescription(version.description);
-			setStatus(version.status);
-			setContentHtml(version.contentHtml || "");
+			setTitle(blog.title);
+			setDescription(blog.description);
+			setStatus(blog.status);
+			setContentHtml(blog.contentHtml || "");
 			latest.current = {
-				title: version.title,
-				description: version.description,
-				status: version.status,
+				title: blog.title,
+				description: blog.description,
+				status: blog.status,
 			};
-			setInitialState(parseInitialState(version));
-			if (version.appId) setAppId(version.appId);
+			setInitialState(parseInitialState(blog));
+			if (blog.appId) setAppId(blog.appId);
 		}
 
 		load().catch((err: unknown) => {
@@ -109,7 +108,7 @@ export function BlogEditor({ versionId }: { versionId: string }) {
 			if (!cancelled) {
 				setSaveStatus("error");
 				setInitialState(null);
-				toast.error("Failed to load version");
+				toast.error("Failed to load blog");
 			}
 		});
 
@@ -117,7 +116,7 @@ export function BlogEditor({ versionId }: { versionId: string }) {
 			cancelled = true;
 			if (saveTimer.current) clearTimeout(saveTimer.current);
 		};
-	}, [versionId]);
+	}, [blogId]);
 
 	const persistDraft = useCallback(async () => {
 		const editor = editorRef.current;
@@ -135,7 +134,7 @@ export function BlogEditor({ versionId }: { versionId: string }) {
 				json,
 			});
 
-			const res = await fetch(`/api/admin/versions/${versionId}`, {
+			const res = await fetch(`/api/admin/blogs/${blogId}`, {
 				method: "PATCH",
 				headers: { "content-type": "application/json" },
 				body: JSON.stringify({
@@ -154,7 +153,7 @@ export function BlogEditor({ versionId }: { versionId: string }) {
 			setSaveStatus("error");
 			throw err;
 		}
-	}, [versionId]);
+	}, [blogId]);
 
 	const scheduleSave = useCallback(() => {
 		if (skipAutosave.current || !editorRef.current) return;
@@ -211,7 +210,7 @@ export function BlogEditor({ versionId }: { versionId: string }) {
 				});
 			}
 
-			const res = await fetch(`/api/admin/versions/${versionId}`, {
+			const res = await fetch(`/api/admin/blogs/${blogId}`, {
 				method: "PATCH",
 				headers: { "content-type": "application/json" },
 				body: JSON.stringify({
@@ -238,7 +237,7 @@ export function BlogEditor({ versionId }: { versionId: string }) {
 		if (statusBusy) return;
 		setStatusBusy(true);
 		try {
-			const res = await fetch(`/api/admin/versions/${versionId}`, {
+			const res = await fetch(`/api/admin/blogs/${blogId}`, {
 				method: "PATCH",
 				headers: { "content-type": "application/json" },
 				body: JSON.stringify({ status: "draft" }),
@@ -403,7 +402,7 @@ export function BlogEditor({ versionId }: { versionId: string }) {
 							</div>
 							<NotionEditor
 								initialState={initialState}
-								key={`${versionId}-draft`}
+								key={`${blogId}-draft`}
 								onChange={onEditorChange}
 								onReady={onReady}
 							/>

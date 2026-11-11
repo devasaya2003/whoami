@@ -192,7 +192,7 @@ with headers `x-api-key: <BLOGS_API_KEY>` (also accepts `Authorization: Bearer`)
 1. Open `https://blogs.yourdomain.com/sign-in` and sign in (or sign up via the same screen).
 2. Create a **user app** for the portfolio (name + public URL).
 3. Create an **API key** — copy the plaintext once into `BLOGS_API_KEY` for `apps/web`, and set `BLOGS_APP_ID` to that app’s id (shown in Settings → Public API).
-4. Create a blog + version, write in the editor, set status **public** / publish.
+4. Create a blog, write in the editor, set status **public** / publish.
 5. Confirm `https://yourdomain.com/blogs` lists the post.
 
 ---

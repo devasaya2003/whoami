@@ -21,8 +21,6 @@ type BlogCard = {
 	title: string;
 	description: string;
 	status: "draft" | "public";
-	versionId: string | null;
-	version: number | null;
 	updatedAt: number;
 };
 
@@ -59,12 +57,11 @@ export function AppBlogsDashboard({ appId }: AppBlogsDashboardProps) {
 		try {
 			const created = await api<{
 				blog: { id: string };
-				version: { id: string };
 			}>(`/api/admin/apps/${appId}/blogs`, {
 				method: "POST",
 				body: JSON.stringify({ title: "Untitled" }),
 			});
-			router.push(`/editor/${created.version.id}`);
+			router.push(`/editor/${created.blog.id}`);
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Failed to create blog");
 			setBusy(false);
@@ -72,21 +69,7 @@ export function AppBlogsDashboard({ appId }: AppBlogsDashboardProps) {
 	}
 
 	async function openEditor(blog: BlogCard) {
-		if (blog.versionId) {
-			router.push(`/editor/${blog.versionId}`);
-			return;
-		}
-		setBusy(true);
-		try {
-			const version = await api<{ id: string }>(
-				`/api/admin/blogs/${blog.id}/versions`,
-				{ method: "POST" },
-			);
-			router.push(`/editor/${version.id}`);
-		} catch (err) {
-			setError(err instanceof Error ? err.message : "Failed to open editor");
-			setBusy(false);
-		}
+		router.push(`/editor/${blog.id}`);
 	}
 
 	const items: ResourceCardItem[] = blogs.map((blog) => ({

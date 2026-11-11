@@ -1,5 +1,4 @@
 import {
-	blogVersions,
 	blogs,
 	newId,
 	now,
@@ -16,7 +15,7 @@ import {
 	uploadKey,
 	userUploadPrefix,
 } from "@repo/storage";
-import { and, desc, eq, max, ne, or } from "drizzle-orm";
+import { and, desc, eq, or } from "drizzle-orm";
 import { Elysia, t } from "elysia";
 import { HttpError, requireClerkUser, resolveUserFromApiKey } from "./auth";
 import { getDb, getR2, getR2PublicUrl } from "./cf";
@@ -127,25 +126,6 @@ async function ownedBlog(
 	return rows[0] ?? null;
 }
 
-async function ownedVersion(
-	db: Awaited<ReturnType<typeof getDb>>,
-	userId: string,
-	versionId: string,
-) {
-	const rows = await db
-		.select({
-			version: blogVersions,
-			blog: blogs,
-			app: userApps,
-		})
-		.from(blogVersions)
-		.innerJoin(blogs, eq(blogVersions.blogId, blogs.id))
-		.innerJoin(userApps, eq(blogs.appId, userApps.id))
-		.where(and(eq(blogVersions.id, versionId), eq(userApps.userId, userId)))
-		.limit(1);
-	return rows[0] ?? null;
-}
-
 export const app = new Elysia({ name: "blogs-api" })
 	.onError(({ error, set }) => {
 		if (error instanceof HttpError) {
@@ -164,47 +144,35 @@ export const app = new Elysia({ name: "blogs-api" })
 		const appId = request.headers.get("app-id")?.trim();
 		if (!appId) throw new HttpError(400, { error: "Missing app-id header" });
 
-		const conditions = [
-			eq(userApps.userId, user.id),
-			eq(userApps.id, appId),
-			eq(blogVersions.status, "public"),
-		];
-
 		const rows = await db
 			.select({
 				id: blogs.id,
 				slug: blogs.slug,
-				title: blogVersions.title,
-				desc: blogVersions.description,
-				versionNum: blogVersions.version,
-				versionCreatedAt: blogVersions.createdAt,
-				versionUpdatedAt: blogVersions.updatedAt,
-				publishedAt: blogVersions.publishedAt,
+				title: blogs.title,
+				desc: blogs.description,
+				createdAt: blogs.createdAt,
+				updatedAt: blogs.updatedAt,
+				publishedAt: blogs.publishedAt,
 			})
-			.from(blogVersions)
-			.innerJoin(blogs, eq(blogVersions.blogId, blogs.id))
+			.from(blogs)
 			.innerJoin(userApps, eq(blogs.appId, userApps.id))
-			.where(and(...conditions))
-			.orderBy(desc(blogVersions.publishedAt), desc(blogVersions.version));
+			.where(
+				and(
+					eq(userApps.userId, user.id),
+					eq(userApps.id, appId),
+					eq(blogs.status, "public"),
+				),
+			)
+			.orderBy(desc(blogs.publishedAt), desc(blogs.updatedAt));
 
-		// latest published version per blog
-		const latest = new Map<string, (typeof rows)[number]>();
-		for (const row of rows) {
-			const prev = latest.get(row.id);
-			if (!prev || row.versionNum > prev.versionNum) {
-				latest.set(row.id, row);
-			}
-		}
-
-		return [...latest.values()].map((row) => ({
+		return rows.map((row) => ({
 			id: row.id,
 			slug: row.slug,
 			title: row.title,
 			desc: row.desc,
-			version_num: row.versionNum,
-			version_created_at: toIso(row.versionCreatedAt),
-			version_updated_at: toIso(row.versionUpdatedAt),
 			published_at: toIso(row.publishedAt),
+			created_at: toIso(row.createdAt),
+			updated_at: toIso(row.updatedAt),
 		}));
 	})
 	.get("/api/v1/blogs/:idOrSlug", async ({ request, params }) => {
@@ -216,31 +184,28 @@ export const app = new Elysia({ name: "blogs-api" })
 		if (!appId) throw new HttpError(400, { error: "Missing app-id header" });
 
 		const idOrSlug = params.idOrSlug.trim();
-		const conditions = [
-			eq(userApps.userId, user.id),
-			eq(userApps.id, appId),
-			eq(blogVersions.status, "public"),
-			or(eq(blogs.id, idOrSlug), eq(blogs.slug, idOrSlug))!,
-		];
-
 		const rows = await db
 			.select({
 				id: blogs.id,
 				slug: blogs.slug,
-				title: blogVersions.title,
-				desc: blogVersions.description,
-				content: blogVersions.contentHtml,
-				docSnapshot: blogVersions.docSnapshot,
-				versionNum: blogVersions.version,
-				versionCreatedAt: blogVersions.createdAt,
-				versionUpdatedAt: blogVersions.updatedAt,
-				publishedAt: blogVersions.publishedAt,
+				title: blogs.title,
+				desc: blogs.description,
+				content: blogs.contentHtml,
+				docSnapshot: blogs.docSnapshot,
+				createdAt: blogs.createdAt,
+				updatedAt: blogs.updatedAt,
+				publishedAt: blogs.publishedAt,
 			})
-			.from(blogVersions)
-			.innerJoin(blogs, eq(blogVersions.blogId, blogs.id))
+			.from(blogs)
 			.innerJoin(userApps, eq(blogs.appId, userApps.id))
-			.where(and(...conditions))
-			.orderBy(desc(blogVersions.version))
+			.where(
+				and(
+					eq(userApps.userId, user.id),
+					eq(userApps.id, appId),
+					eq(blogs.status, "public"),
+					or(eq(blogs.id, idOrSlug), eq(blogs.slug, idOrSlug))!,
+				),
+			)
 			.limit(1);
 
 		const row = rows[0];
@@ -253,10 +218,9 @@ export const app = new Elysia({ name: "blogs-api" })
 			desc: row.desc,
 			content: row.content,
 			content_json: toContentJson(row.docSnapshot),
-			version_num: row.versionNum,
-			version_created_at: toIso(row.versionCreatedAt),
-			version_updated_at: toIso(row.versionUpdatedAt),
 			published_at: toIso(row.publishedAt),
+			created_at: toIso(row.createdAt),
+			updated_at: toIso(row.updatedAt),
 		};
 	})
 	// --- Admin: current user ---
@@ -300,46 +264,26 @@ export const app = new Elysia({ name: "blogs-api" })
 				appName: userApps.name,
 				createdAt: blogs.createdAt,
 				updatedAt: blogs.updatedAt,
-				versionId: blogVersions.id,
-				version: blogVersions.version,
-				title: blogVersions.title,
-				description: blogVersions.description,
-				status: blogVersions.status,
-				publishedAt: blogVersions.publishedAt,
+				title: blogs.title,
+				description: blogs.description,
+				status: blogs.status,
+				publishedAt: blogs.publishedAt,
 			})
 			.from(blogs)
 			.innerJoin(userApps, eq(blogs.appId, userApps.id))
-			.leftJoin(blogVersions, eq(blogVersions.blogId, blogs.id))
 			.where(eq(userApps.userId, user.id))
-			.orderBy(desc(blogs.updatedAt), desc(blogVersions.version));
+			.orderBy(desc(blogs.updatedAt));
 
-		const latest = new Map<
-			string,
-			(typeof rows)[number] & { versionId: string | null }
-		>();
-		for (const row of rows) {
-			const prev = latest.get(row.id);
-			if (!prev) {
-				latest.set(row.id, row);
-				continue;
-			}
-			if ((row.version ?? 0) > (prev.version ?? 0)) {
-				latest.set(row.id, row);
-			}
-		}
-
-		return [...latest.values()].map((row) => ({
+		return rows.map((row) => ({
 			id: row.id,
 			slug: row.slug,
 			appId: row.appId,
 			appName: row.appName,
 			createdAt: row.createdAt,
 			updatedAt: row.updatedAt,
-			versionId: row.versionId,
-			version: row.version ?? null,
 			title: row.title || row.slug,
 			description: row.description || "",
-			status: row.status ?? "draft",
+			status: row.status,
 			publishedAt: row.publishedAt,
 		}));
 	})
@@ -490,35 +434,23 @@ export const app = new Elysia({ name: "blogs-api" })
 				appId: blogs.appId,
 				createdAt: blogs.createdAt,
 				updatedAt: blogs.updatedAt,
-				versionId: blogVersions.id,
-				version: blogVersions.version,
-				title: blogVersions.title,
-				description: blogVersions.description,
-				status: blogVersions.status,
+				title: blogs.title,
+				description: blogs.description,
+				status: blogs.status,
 			})
 			.from(blogs)
-			.leftJoin(blogVersions, eq(blogVersions.blogId, blogs.id))
 			.where(eq(blogs.appId, appRow.id))
-			.orderBy(desc(blogs.updatedAt), desc(blogVersions.version));
+			.orderBy(desc(blogs.updatedAt));
 
-		const latest = new Map<string, (typeof rows)[number]>();
-		for (const row of rows) {
-			const prev = latest.get(row.id);
-			if (!prev || (row.version ?? 0) > (prev.version ?? 0)) {
-				latest.set(row.id, row);
-			}
-		}
-		return [...latest.values()].map((row) => ({
+		return rows.map((row) => ({
 			id: row.id,
 			slug: row.slug,
 			appId: row.appId,
 			createdAt: row.createdAt,
 			updatedAt: row.updatedAt,
-			versionId: row.versionId,
-			version: row.version ?? null,
 			title: row.title || row.slug,
 			description: row.description || "",
-			status: row.status ?? "draft",
+			status: row.status,
 		}));
 	})
 	.post(
@@ -537,25 +469,17 @@ export const app = new Elysia({ name: "blogs-api" })
 						id: newId(),
 						appId: appRow.id,
 						slug,
-						createdAt: ts,
-						updatedAt: ts,
-					};
-					await db.insert(blogs).values(blog);
-					const version = {
-						id: newId(),
-						blogId: blog.id,
-						version: 1,
 						title,
 						description: body.description?.trim() || "",
 						status: "draft" as const,
-						publishedAt: null,
+						publishedAt: null as number | null,
 						docSnapshot: "{}",
 						contentHtml: "",
 						createdAt: ts,
 						updatedAt: ts,
 					};
-					await db.insert(blogVersions).values(version);
-					return { blog, version };
+					await db.insert(blogs).values(blog);
+					return { blog };
 				} catch {
 					slug = makeBlogSlug(title);
 				}
@@ -577,96 +501,41 @@ export const app = new Elysia({ name: "blogs-api" })
 		await db.delete(blogs).where(eq(blogs.id, owned.blog.id));
 		return { ok: true };
 	})
-	// --- Admin: versions ---
-	.get("/api/admin/blogs/:blogId/versions", async ({ params }) => {
+	.get("/api/admin/blogs/:blogId", async ({ params }) => {
 		const db = await getDb();
 		const user = await requireClerkUser(db);
 		const owned = await ownedBlog(db, user.id, params.blogId);
 		if (!owned) throw new HttpError(404, { error: "Blog not found" });
-		return db
-			.select()
-			.from(blogVersions)
-			.where(eq(blogVersions.blogId, owned.blog.id))
-			.orderBy(desc(blogVersions.version));
-	})
-	.post("/api/admin/blogs/:blogId/versions", async ({ params }) => {
-		const db = await getDb();
-		const user = await requireClerkUser(db);
-		const owned = await ownedBlog(db, user.id, params.blogId);
-		if (!owned) throw new HttpError(404, { error: "Blog not found" });
-
-		const maxRows = await db
-			.select({ value: max(blogVersions.version) })
-			.from(blogVersions)
-			.where(eq(blogVersions.blogId, owned.blog.id));
-		const nextVersion = (maxRows[0]?.value ?? 0) + 1;
-		const latest = await db
-			.select()
-			.from(blogVersions)
-			.where(eq(blogVersions.blogId, owned.blog.id))
-			.orderBy(desc(blogVersions.version))
-			.limit(1);
-
-		const ts = now();
-		const source = latest[0];
-		const row = {
-			id: newId(),
-			blogId: owned.blog.id,
-			version: nextVersion,
-			title: source?.title ?? "",
-			description: source?.description ?? "",
-			status: "draft" as const,
-			publishedAt: null,
-			docSnapshot: source?.docSnapshot ?? "{}",
-			contentHtml: source?.contentHtml ?? "",
-			createdAt: ts,
-			updatedAt: ts,
-		};
-		await db.insert(blogVersions).values(row);
-		await db
-			.update(blogs)
-			.set({ updatedAt: ts })
-			.where(eq(blogs.id, owned.blog.id));
-		return row;
-	})
-	.get("/api/admin/versions/:versionId", async ({ params }) => {
-		const db = await getDb();
-		const user = await requireClerkUser(db);
-		const owned = await ownedVersion(db, user.id, params.versionId);
-		if (!owned) throw new HttpError(404, { error: "Version not found" });
 		return {
-			...owned.version,
-			blogId: owned.blog.id,
+			...owned.blog,
 			appId: owned.app.id,
 		};
 	})
 	.patch(
-		"/api/admin/versions/:versionId",
+		"/api/admin/blogs/:blogId",
 		async ({ params, body }) => {
 			const db = await getDb();
 			const user = await requireClerkUser(db);
-			const owned = await ownedVersion(db, user.id, params.versionId);
-			if (!owned) throw new HttpError(404, { error: "Version not found" });
+			const owned = await ownedBlog(db, user.id, params.blogId);
+			if (!owned) throw new HttpError(404, { error: "Blog not found" });
 
 			const ts = now();
-			const patch: Partial<typeof blogVersions.$inferInsert> = {
+			const patch: Partial<typeof blogs.$inferInsert> = {
 				updatedAt: ts,
 			};
 			if (body.title !== undefined) patch.title = body.title;
 			if (body.description !== undefined) patch.description = body.description;
 			if (body.status !== undefined) {
 				patch.status = body.status;
-				if (body.status === "public" && !owned.version.publishedAt) {
+				if (body.status === "public" && !owned.blog.publishedAt) {
 					patch.publishedAt = ts;
+				}
+				if (body.status === "draft") {
+					// keep publishedAt history; only flip status
 				}
 			}
 			if (body.docSnapshot !== undefined) patch.docSnapshot = body.docSnapshot;
 			if (body.contentHtml !== undefined) patch.contentHtml = body.contentHtml;
-
-			await db
-				.update(blogVersions)
-				.set(patch)
-				.where(eq(blogVersions.id, owned.version.id));
 
 			let nextSlug = owned.blog.slug;
 			if (body.title !== undefined) {
@@ -677,7 +546,7 @@ export const app = new Elysia({ name: "blogs-api" })
 					try {
 						await db
 							.update(blogs)
-							.set({ slug: candidate, updatedAt: ts })
+							.set({ ...patch, slug: candidate })
 							.where(eq(blogs.id, owned.blog.id));
 						nextSlug = candidate;
 						allocated = true;
@@ -692,11 +561,11 @@ export const app = new Elysia({ name: "blogs-api" })
 			} else {
 				await db
 					.update(blogs)
-					.set({ updatedAt: ts })
+					.set(patch)
 					.where(eq(blogs.id, owned.blog.id));
 			}
 
-			return { ...owned.version, ...patch, slug: nextSlug };
+			return { ...owned.blog, ...patch, slug: nextSlug };
 		},
 		{
 			body: t.Object({
@@ -708,35 +577,6 @@ export const app = new Elysia({ name: "blogs-api" })
 			}),
 		},
 	)
-	.post("/api/admin/versions/:versionId/publish", async ({ params }) => {
-		const db = await getDb();
-		const user = await requireClerkUser(db);
-		const owned = await ownedVersion(db, user.id, params.versionId);
-		if (!owned) throw new HttpError(404, { error: "Version not found" });
-
-		const ts = now();
-		await db
-			.update(blogVersions)
-			.set({ status: "draft", updatedAt: ts })
-			.where(
-				and(
-					eq(blogVersions.blogId, owned.blog.id),
-					eq(blogVersions.status, "public"),
-					ne(blogVersions.id, owned.version.id),
-				),
-			);
-		await db
-			.update(blogVersions)
-			.set({ status: "public", publishedAt: ts, updatedAt: ts })
-			.where(eq(blogVersions.id, owned.version.id));
-
-		return {
-			...owned.version,
-			status: "public" as const,
-			publishedAt: ts,
-			updatedAt: ts,
-		};
-	})
 	.get("/api/media/*", async ({ params }) => {
 		try {
 			const key = decodeURIComponent(String(params["*"] ?? "")).replace(/^\/+/, "");

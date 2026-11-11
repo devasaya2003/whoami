@@ -16,10 +16,9 @@ type PublicBlogListItem = {
 	slug: string;
 	title: string;
 	desc: string;
-	version_num: number;
-	version_created_at: string | null;
-	version_updated_at: string | null;
 	published_at: string | null;
+	created_at?: string | null;
+	updated_at?: string | null;
 };
 
 type PublicBlog = PublicBlogListItem & {

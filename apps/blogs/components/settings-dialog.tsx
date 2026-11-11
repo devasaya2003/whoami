@@ -395,10 +395,9 @@ app-id: YOUR-APP-ID`}</CodeBlock>
     "slug": "...",
     "title": "...",
     "desc": "...",
-    "version_num": 1,
-    "version_created_at": "...",
-    "version_updated_at": "...",
-    "published_at": "..."
+    "published_at": "...",
+    "created_at": "...",
+    "updated_at": "..."
   }
 ]`}</CodeBlock>
 							</div>
@@ -418,10 +417,9 @@ app-id: YOUR-APP-ID`}</CodeBlock>
   "desc": "...",
   "content": "<p>...</p>",
   "content_json": { "root": { "...": "Lexical editor state" } },
-  "version_num": 1,
-  "version_created_at": "...",
-  "version_updated_at": "...",
-  "published_at": "..."
+  "published_at": "...",
+  "created_at": "...",
+  "updated_at": "..."
 }`}</CodeBlock>
 							</div>
 

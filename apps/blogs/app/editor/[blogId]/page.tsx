@@ -17,8 +17,8 @@ const BlogEditor = dynamic(
 export default function EditorPage({
 	params,
 }: {
-	params: Promise<{ versionId: string }>;
+	params: Promise<{ blogId: string }>;
 }) {
-	const { versionId } = use(params);
-	return <BlogEditor versionId={versionId} />;
+	const { blogId } = use(params);
+	return <BlogEditor blogId={blogId} />;
 }
