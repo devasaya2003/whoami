@@ -1,12 +1,13 @@
-import { Elysia, t } from "elysia";
+import { t } from "elysia";
 import type { BlogsService } from "../services/blogs.service";
 import type { UserRow } from "../services/me.service";
+import { createWorkerElysia } from "./worker-elysia.router";
 
 export function createBlogsRouter(deps: {
 	service: BlogsService;
 	requireUser: () => Promise<UserRow>;
 }) {
-	return new Elysia({ name: "blogs" })
+	return createWorkerElysia("blogs")
 		.get("/api/admin/blogs", async () => {
 			const user = await deps.requireUser();
 			return deps.service.listAll(user);
