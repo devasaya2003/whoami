@@ -3,22 +3,15 @@
 import { SignedIn, UserButton, useUser } from "@clerk/nextjs";
 import { ThemeToggle } from "@repo/ui/components/theme-toggle";
 import { Button } from "@repo/ui/components/ui/button";
-import { Input } from "@repo/ui/components/ui/input";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
 } from "@repo/ui/components/ui/tooltip";
-import {
-	CheckIcon,
-	PencilIcon,
-	PlusIcon,
-	SettingsIcon,
-	XIcon,
-} from "lucide-react";
-import Link from "next/link";
+import { PlusIcon, SettingsIcon } from "lucide-react";
 import { useEffect, useState } from "react";
+import { SettingsDialog } from "./settings-dialog";
 
 type CmsHeaderProps = {
 	createMode?: "app" | "blog";
@@ -33,9 +26,7 @@ export function CmsHeader({
 }: CmsHeaderProps) {
 	const { user, isLoaded } = useUser();
 	const [displayName, setDisplayName] = useState("");
-	const [draft, setDraft] = useState("");
-	const [editing, setEditing] = useState(false);
-	const [saving, setSaving] = useState(false);
+	const [settingsOpen, setSettingsOpen] = useState(false);
 
 	const showCreate = Boolean(createMode && onCreate);
 	const createLabel = createMode === "blog" ? "New blog" : "New app";
@@ -75,103 +66,27 @@ export function CmsHeader({
 		};
 	}, [isLoaded, user]);
 
-	async function saveName() {
-		const next = draft.trim();
-		if (!next) return;
-		setSaving(true);
-		try {
-			const res = await fetch("/api/admin/me", {
-				method: "PATCH",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({ name: next }),
-			});
-			if (!res.ok) throw new Error(await res.text());
-			const parts = next.split(/\s+/);
-			await user?.update({
-				firstName: parts[0] ?? next,
-				lastName: parts.slice(1).join(" ") || undefined,
-			});
-			setDisplayName(next);
-			setEditing(false);
-		} catch (err) {
-			console.error(err);
-		} finally {
-			setSaving(false);
-		}
-	}
-
 	return (
 		<TooltipProvider>
 			<header className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4 px-6 pb-6 pt-12">
 				<div className="min-w-0 flex-1">
-					{editing ? (
-						<form
-							className="flex max-w-md items-center gap-2"
-							onSubmit={(event) => {
-								event.preventDefault();
-								void saveName();
-							}}
-						>
-							<Input
-								autoFocus
-								aria-label="Display name"
-								className="text-xl font-medium tracking-tight"
-								onChange={(e) => setDraft(e.target.value)}
-								value={draft}
-							/>
-							<Button
-								aria-label="Save name"
-								disabled={saving || !draft.trim()}
-								size="icon-sm"
-								type="submit"
-								variant="ghost"
-							>
-								<CheckIcon />
-							</Button>
-							<Button
-								aria-label="Cancel"
-								disabled={saving}
-								onClick={() => setEditing(false)}
-								size="icon-sm"
-								type="button"
-								variant="ghost"
-							>
-								<XIcon />
-							</Button>
-						</form>
-					) : (
-						<div className="flex min-w-0 items-center gap-2">
-							<p className="truncate text-2xl font-medium tracking-tight">
-								{displayName || (isLoaded ? "User" : "…")}
-							</p>
-							<Button
-								aria-label="Edit name"
-								onClick={() => {
-									setDraft(displayName);
-									setEditing(true);
-								}}
-								size="icon-sm"
-								type="button"
-								variant="ghost"
-							>
-								<PencilIcon />
-							</Button>
-						</div>
-					)}
+					<p className="truncate text-2xl font-medium tracking-tight">
+						{displayName || (isLoaded ? "User" : "…")}
+					</p>
 				</div>
 
 				<nav className="flex shrink-0 items-center gap-2">
-					<ThemeToggle />
+					<ThemeToggle variant="outline" />
 					<Tooltip>
 						<TooltipTrigger
 							render={
 								<Button
-									nativeButton={false}
 									aria-label="Settings"
-									render={<Link href="/settings" />}
-									size="icon"
-									variant="ghost"
 									className="rounded-full"
+									onClick={() => setSettingsOpen(true)}
+									size="icon"
+									type="button"
+									variant="outline"
 								/>
 							}
 						>
@@ -204,6 +119,12 @@ export function CmsHeader({
 					</SignedIn>
 				</nav>
 			</header>
+
+			<SettingsDialog
+				onDisplayNameChange={setDisplayName}
+				onOpenChange={setSettingsOpen}
+				open={settingsOpen}
+			/>
 		</TooltipProvider>
 	);
 }
